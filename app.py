@@ -10,7 +10,8 @@ CORS(app)
 
 # إعداد مفتاح الذكاء الاصطناعي (يمكنك الحصول على مفتاح مجاني من Google AI Studio)
 # للمطوّر محلياً، يمكنك وضعه مباشرة هنا للتجربة التعليمية
-genai.configure(api_key="AQ.Ab8RN6IhufcjUUlzcZXnXJfUrolcyMSnARsrWPT10pqx6fFAWw")
+# اترك السطر هكذا تماماً ولا تضع مفتاحك الحقيقي هنا
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMP_DIR = os.path.join(BASE_DIR, "temp_files")
