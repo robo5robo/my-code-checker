@@ -32,7 +32,7 @@
         button:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* محرر Monaco وأزرار التحكم */
-        #codeEditor { position: relative; height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; }
+        #codeEditor { position: relative; height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; contain: layout paint; }
         .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
         .actions button { flex: 1 1 140px; }
         #runBtn { background: #16a34a; }
@@ -144,7 +144,9 @@
 
             <div style="margin-bottom: 15px;">
                 <label>أدخل كودك هنا:</label>
-                <div id="codeEditor" dir="ltr"></div>
+                <div dir="ltr" style="unicode-bidi: isolate;">
+                    <div id="codeEditor"></div>
+                </div>
             </div>
 
             <div class="actions">
@@ -298,6 +300,13 @@
                 wordWrap: "on",
                 fontSize: 15
             });
+            // إعادة قياس + إلغاء أي انزياح تمرير RTL بعد تهيئة Monaco
+            setTimeout(() => {
+                if (editor) {
+                    editor.layout();
+                    editor.setScrollPosition({ scrollLeft: 0, scrollTop: 0 });
+                }
+            }, 50);
         });
 
         // إعادة رسم المحرر بشكل صريح عند تغيّر حجم النافذة (مثل تدوير الجوال)
