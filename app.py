@@ -3,7 +3,7 @@ import re
 import uuid
 import subprocess
 import json
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, redirect
 from flask_cors import CORS
 import google.generativeai as genai
 import lizard
@@ -29,8 +29,12 @@ def home():
 
 @app.route('/monaco/<path:filename>')
 def serve_monaco(filename):
-    """تقديم ملفات Monaco Editor من المجلد المحلي (لا يوجد CDN خارجي)."""
-    return send_from_directory(MONACO_DIR, filename)
+    """تقديم ملفات Monaco من المجلد المحلي، أو redirect للـ CDN إن لم تكن موجودة (fallback لـ Render)."""
+    local_path = os.path.join(MONACO_DIR, filename)
+    if os.path.exists(local_path):
+        return send_from_directory(MONACO_DIR, filename)
+    cdn = f'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/{filename}'
+    return redirect(cdn, code=302)
 
 # ============================================================
 #  المرحلة 3 و4: فحص الجودة والتعقيد والديون التقنية (POST /analyze)
