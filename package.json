@@ -1,0 +1,8 @@
+{
+  "name": "my-code-checker",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "monaco-editor": "0.52.2"
+  }
+}
