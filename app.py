@@ -17,9 +17,16 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMP_DIR = os.path.join(BASE_DIR, "temp_files")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
+MONACO_DIR = os.path.join(BASE_DIR, 'node_modules', 'monaco-editor', 'min')
+
 @app.route('/', methods=['GET'])
 def home():
     return send_from_directory(BASE_DIR, 'index.html')
+
+@app.route('/monaco/<path:filename>')
+def serve_monaco(filename):
+    """تقديم ملفات Monaco Editor من المجلد المحلي (لا يوجد CDN خارجي)."""
+    return send_from_directory(MONACO_DIR, filename)
 
 @app.route('/api/check-code', methods=['POST'])
 def check_code():
@@ -30,7 +37,7 @@ def check_code():
     code_content = data['code']
     language = data['language'].lower()
     
-    extensions = {"python": "temp.py", "c": "temp.c", "cpp": "temp.cpp"}
+    extensions = {"python": "temp.py", "c": "temp.c", "cpp": "temp.cpp", "javascript": "temp.js"}
     if language not in extensions:
         return jsonify({"error": "هذه اللغة غير مدعومة حالياً"}), 400
         
@@ -48,6 +55,9 @@ def check_code():
             compiler = "gcc" if language == "c" else "g++"
             result = subprocess.run([compiler, "-fsyntax-only", file_path], capture_output=True, text=True, timeout=5)
             raw_report = result.stderr if result.stderr else "الكود متوافق مع معايير المترجم العالَمية."
+        elif language == "javascript":
+            # لا توجد أداة فحص ساكن لـ JavaScript على الخادم حالياً، والكود لا يُشغَّل هنا أبداً
+            raw_report = "لا توجد أداة فحص ساكن لـ JavaScript حالياً؛ التحليل يعتمد على الذكاء الاصطناعي فقط."
 
         # 2. استدعاء المعلم الذكي (AI) لتحليل الأخطاء والخدمات المتقدمة
         model = genai.GenerativeModel('gemini-pro')

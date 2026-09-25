@@ -15,6 +15,20 @@
         textarea { font-family: monospace; height: 180px; resize: vertical; direction: ltr; text-align: left; }
         button { width: 100%; background: #0284c7; color: #fff; border: none; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; transition: 0.2s; }
         button:hover { background: #0369a1; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* محرر Monaco وأزرار التحكم */
+        #codeEditor { height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; }
+        .actions { display: flex; gap: 10px; }
+        .actions button { flex: 1; }
+        #runBtn { background: #16a34a; }
+        #runBtn:hover { background: #15803d; }
+        #stopBtn { background: #b91c1c; flex: 0 0 110px; display: none; }
+        #stopBtn:hover { background: #991b1b; }
+        .output-card { margin-top: 20px; display: none; }
+        .output-card pre { min-height: 60px; max-height: 320px; overflow-y: auto; }
+        .stderr { color: #f87171; }
+        .run-status { color: #94a3b8; font-size: 13px; margin-top: 8px; }
         
         /* لوحة التحكم والخدمات الاحترافية */
         .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; display: none; }
@@ -39,17 +53,27 @@
                 <label for="languageSelect">اختر اللغة البرمجية:</label>
                 <select id="languageSelect">
                     <option value="python">Python</option>
-                    <option value="c">C Language</option>
-                    <option value="cpp">C++</option>
+                    <option value="javascript">JavaScript</option>
                 </select>
             </div>
 
             <div style="margin-bottom: 15px;">
-                <label for="codeEditor">أدخل كودك هنا:</label>
-                <textarea id="codeEditor" placeholder="# اكتب الكود الخاص بك هنا..."></textarea>
+                <label>أدخل كودك هنا:</label>
+                <div id="codeEditor" dir="ltr"></div>
             </div>
 
-            <button id="checkBtn">ابدأ التحليل الشامل للمشروع</button>
+            <div class="actions">
+                <button id="runBtn">▶ تشغيل</button>
+                <button id="stopBtn">■ إيقاف</button>
+                <button id="checkBtn">ابدأ التحليل الشامل للمشروع</button>
+            </div>
+            <div class="run-status">يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.</div>
+
+            <div id="outputCard" class="service-card output-card">
+                <div class="card-title text-green">🖥️ المخرجات</div>
+                <pre><code id="runOutput"></code></pre>
+                <div id="runStatus" class="run-status"></div>
+            </div>
         </div>
 
         <!-- لوحة التحكم والخدمات البرمجية المتقدمة -->
@@ -88,12 +112,186 @@
         </div>
     </div>
 
+    <script src="/monaco/vs/loader.js"></script>
     <script>
+        // ===== محرر Monaco =====
+        const SAMPLES = {
+            python: 'def greet(name):\n    return f"مرحباً {name}"\n\nprint(greet("طالب"))\n',
+            javascript: 'function greet(name) {\n  return `مرحباً ${name}`;\n}\n\nconsole.log(greet("طالب"));\n'
+        };
+        const languageSelect = document.getElementById("languageSelect");
+        let editor = null; window.editor = null;
+
+        require.config({ paths: { vs: "/monaco/vs" } });
+        require(["vs/editor/editor.main"], () => {
+            window.editor = editor = monaco.editor.create(document.getElementById("codeEditor"), {
+                value: SAMPLES[languageSelect.value],
+                language: languageSelect.value,
+                theme: "vs-dark",
+                automaticLayout: true,
+                minimap: { enabled: false },
+                fontSize: 15
+            });
+        });
+
+        languageSelect.addEventListener("change", () => {
+            if (!editor) return;
+            const lang = languageSelect.value;
+            const current = editor.getValue();
+            // استبدال الكود بالمثال فقط إذا لم يعدّله الطالب
+            if (!current.trim() || Object.values(SAMPLES).includes(current)) editor.setValue(SAMPLES[lang]);
+            monaco.editor.setModelLanguage(editor.getModel(), lang);
+        });
+
+        function getCode() {
+            return editor ? editor.getValue() : "";
+        }
+
+        // ===== التشغيل داخل المتصفح (Web Worker معزول، لا شيء يُنفَّذ على الخادم) =====
+        const RUN_TIMEOUT_MS = 10000;
+        const WORKER_SOURCES = {
+            javascript: `
+                const send = (stream, args) => postMessage({ type: "out", stream,
+                    text: args.map(a => typeof a === "string" ? a : (() => { try { return JSON.stringify(a); } catch { return String(a); } })()).join(" ") + "\\n" });
+                console.log = console.info = console.debug = (...a) => send("stdout", a);
+                console.error = console.warn = (...a) => send("stderr", a);
+                postMessage({ type: "ready" });
+                onmessage = async (e) => {
+                    try {
+                        await (async () => {}).constructor(e.data.code)();
+                    } catch (err) {
+                        postMessage({ type: "out", stream: "stderr", text: String(err && err.stack || err) + "\\n" });
+                    }
+                    postMessage({ type: "done" });
+                };`,
+            python: `
+                importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");  // Pyodide من CDN (يحتاج اتصالاً بالإنترنت من متصفح المستخدم)
+                const ready = loadPyodide().then((py) => {
+                    py.setStdout({ batched: (t) => postMessage({ type: "out", stream: "stdout", text: t + "\\n" }) });
+                    py.setStderr({ batched: (t) => postMessage({ type: "out", stream: "stderr", text: t + "\\n" }) });
+                    py.setStdin({ error: true });
+                    postMessage({ type: "ready" });
+                    return py;
+                }).catch((err) => postMessage({ type: "fatal", text: String(err) }));
+                onmessage = async (e) => {
+                    const py = await ready;
+                    const globals = py.globals.get("dict")();
+                    try {
+                        await py.runPythonAsync(e.data.code, { globals });
+                    } catch (err) {
+                        postMessage({ type: "out", stream: "stderr", text: String(err.message || err) });
+                    } finally {
+                        globals.destroy();
+                    }
+                    postMessage({ type: "done" });
+                };`
+        };
+
+        const runBtn = document.getElementById("runBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const outputCard = document.getElementById("outputCard");
+        const runOutput = document.getElementById("runOutput");
+        const runStatus = document.getElementById("runStatus");
+        const workers = {};   // عامل واحد لكل لغة (حتى لا يُعاد تحميل Pyodide في كل تشغيل)
+        let activeRun = null;
+
+        function getWorker(lang) {
+            if (!workers[lang]) {
+                const url = URL.createObjectURL(new Blob([WORKER_SOURCES[lang]], { type: "text/javascript" }));
+                const w = new Worker(url);
+                w.readyPromise = new Promise((resolve, reject) => {
+                    w.addEventListener("message", function onReady(e) {
+                        if (e.data.type === "ready") { w.removeEventListener("message", onReady); resolve(); }
+                        if (e.data.type === "fatal") { w.removeEventListener("message", onReady); reject(new Error(e.data.text)); }
+                    });
+                    w.addEventListener("error", (e) => reject(new Error(e.message || "تعذّر تحميل بيئة التشغيل")));
+                });
+                workers[lang] = w;
+            }
+            return workers[lang];
+        }
+
+        function killWorker(lang) {
+            if (workers[lang]) { workers[lang].terminate(); delete workers[lang]; }
+        }
+
+        function appendOutput(text, stream) {
+            const span = document.createElement("span");
+            if (stream === "stderr") span.className = "stderr";
+            span.textContent = text;
+            runOutput.appendChild(span);
+        }
+
+        function finishRun(message) {
+            if (!activeRun) return;
+            clearTimeout(activeRun.timer);
+            activeRun.worker.onmessage = null;
+            activeRun = null;
+            runStatus.textContent = message;
+            runBtn.disabled = false;
+            runBtn.innerText = "▶ تشغيل";
+            stopBtn.style.display = "none";
+        }
+
+        function stopRun(message) {
+            if (!activeRun) return;
+            const lang = activeRun.lang;
+            finishRun(message);
+            killWorker(lang);
+        }
+
+        runBtn.addEventListener("click", async () => {
+            const code = getCode();
+            if (!code.trim()) return alert("الرجاء إدخال الكود أولاً!");
+            const lang = languageSelect.value;
+
+            runOutput.textContent = "";
+            outputCard.style.display = "block";
+            runBtn.disabled = true;
+            stopBtn.style.display = "block";
+
+            const worker = getWorker(lang);
+            activeRun = { lang, worker, timer: null };
+            const run = activeRun;
+
+            runBtn.innerText = lang === "python" ? "جاري تحميل بيئة بايثون..." : "جاري التشغيل...";
+            runStatus.textContent = "";
+            try {
+                await worker.readyPromise;
+            } catch (err) {
+                appendOutput("تعذّر تحميل بيئة التشغيل: " + err.message + "\n", "stderr");
+                killWorker(lang);
+                return finishRun("فشل التشغيل.");
+            }
+            if (activeRun !== run) return;   // أُوقف أثناء التحميل
+
+            runBtn.innerText = "جاري التشغيل...";
+            const started = performance.now();
+            worker.onmessage = (e) => {
+                if (e.data.type === "out") appendOutput(e.data.text, e.data.stream);
+                if (e.data.type === "done") {
+                    if (!runOutput.textContent) appendOutput("(لا توجد مخرجات)\n");
+                    finishRun(`انتهى التشغيل خلال ${Math.round(performance.now() - started)} ms`);
+                }
+            };
+            run.timer = setTimeout(() => {
+                appendOutput(`\n⏱️ تم إيقاف التشغيل: تجاوز الحد الزمني (${RUN_TIMEOUT_MS / 1000} ثوانٍ).\n`, "stderr");
+                stopRun("تم الإيقاف بسبب تجاوز الوقت.");
+            }, RUN_TIMEOUT_MS);
+            worker.postMessage({ code });
+        });
+
+        stopBtn.addEventListener("click", () => {
+            appendOutput("\n■ تم إيقاف التشغيل.\n", "stderr");
+            stopRun("تم الإيقاف يدوياً.");
+        });
+
+        // ===== التحليل الشامل عبر الخادم (فحص ساكن + ذكاء اصطناعي، بدون تشغيل) =====
         document.getElementById("checkBtn").addEventListener("click", async () => {
             const btn = document.getElementById("checkBtn");
             const dashboard = document.getElementById("devDashboard");
-            const selectedLanguage = document.getElementById("languageSelect").value;
-            const userCode = document.getElementById("codeEditor").value;
+            const selectedLanguage = languageSelect.value;
+            const userCode = getCode();
 
             if (!userCode.trim()) return alert("الرجاء إدخال الكود أولاً!");
 
