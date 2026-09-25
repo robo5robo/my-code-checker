@@ -434,7 +434,15 @@ def check_code():
             raw_report = "لا توجد أداة فحص ساكن لـ JavaScript حالياً؛ التحليل يعتمد على الذكاء الاصطناعي فقط."
 
         # 2. استدعاء المعلم الذكي (AI) لتحليل الأخطاء والخدمات المتقدمة
-        model = genai.GenerativeModel('gemini-pro')
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if not gemini_key:
+            return jsonify({
+                "raw_result": raw_report,
+                "error": "مفتاح الذكاء الاصطناعي غير مكوَّن على الخادم. يُعرض فحص الكود الساكن فقط.",
+                "fallback": True
+            })
+
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""
         أنت محرك فحص أكواد احترافي ومعلم برمجية لطلاب الجامعات.
@@ -466,10 +474,14 @@ def check_code():
         })
 
     except Exception as e:
-        # في حال عدم وجود مفتاح API أو حدوث خطأ، نعيد التحليل التقني الجاف كخطة بديلة
+        err_str = str(e)
+        if "401" in err_str or "credentials" in err_str.lower() or "API_KEY" in err_str:
+            err_msg = "مفتاح الذكاء الاصطناعي غير صحيح أو غير مكوَّن على الخادم."
+        else:
+            err_msg = "تعذّر الاتصال بخدمة الذكاء الاصطناعي، يُعرض فحص الكود الساكن فقط."
         return jsonify({
             "raw_result": raw_report if 'raw_report' in locals() else "حدث خطأ أثناء معالجة الملف",
-            "error": str(e),
+            "error": err_msg,
             "fallback": True
         }), 200
     finally:
