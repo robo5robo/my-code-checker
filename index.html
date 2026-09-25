@@ -11,8 +11,8 @@
         /* overflow-x على body فقط (ليس html) — في RTL يُزيح html overflow-x:hidden نقطة التمرير ويخفي نص Monaco */
         html { max-width: 100%; }
         body { overflow-x: hidden; max-width: 100%; }
-        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0 16px 30px; text-align: right; }
-        .container { max-width: 900px; margin: 0 auto; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0 16px 30px; }
+        .container { max-width: 900px; margin: 0 auto; text-align: right; }
 
         /* الشريط العلوي */
         .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 0; border-bottom: 1px solid #1e293b; margin-bottom: 20px; }
@@ -32,7 +32,7 @@
         button:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* محرر Monaco وأزرار التحكم */
-        #codeEditor { position: relative; height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; }
+        #codeEditor { position: relative; height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; text-align: left; }
         .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
         .actions button { flex: 1 1 140px; }
         #runBtn { background: #16a34a; }
@@ -300,7 +300,9 @@
                     automaticLayout: true,
                     minimap: { enabled: false },
                     wordWrap: "on",
-                    fontSize: 15
+                    fontSize: 15,
+                    lineHeight: 22,
+                    fontLigatures: false
                 });
                 // تشخيص + إعادة layout بعد التهيئة
                 setTimeout(() => {
