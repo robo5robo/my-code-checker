@@ -327,7 +327,10 @@ def get_ai_explanation(language, errors, score, complexity):
     if gemini_key:
         try:
             model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(prompt)
+            response = model.generate_content(
+                prompt,
+                request_options={"timeout": 15}
+            )
             return response.text.strip()
         except Exception:
             pass
@@ -410,8 +413,18 @@ def check_code():
         raw_report = ""
         # 1. تشغيل أدوات الفحص الساكن والمترجمات وجلب التقارير الجافة
         if language == "python":
-            result = subprocess.run(["pylint", "--errors-only", file_path], capture_output=True, text=True, timeout=5)
-            raw_report = result.stdout if result.stdout else "كود بايثون سليم نحوياً."
+            result = subprocess.run(
+                ["ruff", "check", "--output-format=json", file_path],
+                capture_output=True, text=True, timeout=10
+            )
+            findings = json.loads(result.stdout) if result.stdout.strip() else []
+            if findings:
+                raw_report = "\n".join(
+                    f"السطر {f.get('location',{}).get('row','?')}: [{f.get('code','')}] {f.get('message','')}"
+                    for f in findings
+                )
+            else:
+                raw_report = "كود بايثون سليم نحوياً."
         elif language in ["c", "cpp"]:
             compiler = "gcc" if language == "c" else "g++"
             result = subprocess.run([compiler, "-fsyntax-only", file_path], capture_output=True, text=True, timeout=5)
@@ -443,7 +456,7 @@ def check_code():
         \"\"\"
         """
         
-        ai_response = model.generate_content(prompt)
+        ai_response = model.generate_content(prompt, request_options={"timeout": 15})
         # تحويل رد الذكاء الاصطناعي النصي إلى كائن JSON لإرساله للمتصفح
         processed_data = json.loads(ai_response.text)
         
