@@ -3,9 +3,10 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# gcc/g++ لفحص صياغة C/C++ فقط (-fsyntax-only)، لا لتشغيل كود الطلاب
+# gcc/g++ لفحص صياغة C/C++ فقط (-fsyntax-only)، وcppcheck لفحص الجودة الساكن
+# لا شيء هنا يُشغّل كود الطالب فعلياً
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc g++ \
+    && apt-get install -y --no-install-recommends gcc g++ cppcheck \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

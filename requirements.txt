@@ -3,3 +3,6 @@ Flask-CORS
 pylint
 google-generativeai
 gunicorn
+ruff
+lizard
+radon

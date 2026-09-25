@@ -3,34 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منصة تدقيق الأكواد الاحترافية</title>
+    <title>CodeChecker - فاحص الأكواد</title>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; padding: 30px; text-align: right; }
+        :root { color-scheme: dark; } /* الوضع الليلي افتراضي دائماً في هذه المنصة */
+        * { box-sizing: border-box; }
+        /* حماية إضافية من أي تمرير أفقي غير مقصود (خاصة مع محرر Monaco وصفحة RTL) */
+        html, body { overflow-x: hidden; max-width: 100%; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0 16px 30px; text-align: right; }
         .container { max-width: 900px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { color: #38bdf8; font-size: 28px; margin-bottom: 5px; }
-        .main-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+
+        /* الشريط العلوي */
+        .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 0; border-bottom: 1px solid #1e293b; margin-bottom: 20px; }
+        .topbar .logo { font-size: 22px; }
+        .topbar .brand { font-weight: 800; font-size: 18px; color: #f8fafc; }
+        .topbar .brand span { color: #38bdf8; }
+
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #38bdf8; font-size: 24px; margin: 0 0 5px; }
+        .header p { color: #94a3b8; margin: 0; font-size: 14px; }
+
+        .main-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         label { display: block; font-weight: 600; margin-bottom: 8px; color: #cbd5e1; }
-        select, textarea { width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 14px; color: #fff; font-size: 16px; box-sizing: border-box; }
-        textarea { font-family: monospace; height: 180px; resize: vertical; direction: ltr; text-align: left; }
-        button { width: 100%; background: #0284c7; color: #fff; border: none; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; transition: 0.2s; }
+        select { width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 12px 14px; color: #fff; font-size: 16px; }
+        button { width: 100%; background: #0284c7; color: #fff; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 0; transition: 0.2s; }
         button:hover { background: #0369a1; }
         button:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* محرر Monaco وأزرار التحكم */
-        #codeEditor { height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; }
-        .actions { display: flex; gap: 10px; }
-        .actions button { flex: 1; }
+        #codeEditor { position: relative; height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+        .actions button { flex: 1 1 140px; }
         #runBtn { background: #16a34a; }
         #runBtn:hover { background: #15803d; }
-        #stopBtn { background: #b91c1c; flex: 0 0 110px; display: none; }
+        #analyzeBtn { background: #7c3aed; }
+        #analyzeBtn:hover { background: #6d28d9; }
+        #stopBtn { background: #b91c1c; flex: 0 0 100px; display: none; }
         #stopBtn:hover { background: #991b1b; }
-        .output-card { margin-top: 20px; display: none; }
+        .hint { color: #94a3b8; font-size: 13px; margin-top: 8px; }
+
+        .output-card, .results-card { margin-top: 20px; display: none; }
         .output-card pre { min-height: 60px; max-height: 320px; overflow-y: auto; }
         .stderr { color: #f87171; }
-        .run-status { color: #94a3b8; font-size: 13px; margin-top: 8px; }
-        
-        /* لوحة التحكم والخدمات الاحترافية */
+
+        /* لوحة التحكم والخدمات الاحترافية (AI) */
         .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; display: none; }
         .service-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 15px; }
         .full-width { grid-column: span 2; }
@@ -38,22 +53,68 @@
         .text-blue { color: #38bdf8; } .text-green { color: #4ade80; } .text-orange { color: #fb923c; } .text-red { color: #f87171; }
         pre { background: #0f172a; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 14px; overflow-x: auto; white-space: pre-wrap; direction: ltr; text-align: left; margin: 0; }
         .badge { background: #334155; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+
+        /* نتائج فحص الكود (/analyze) */
+        .issues-list { list-style: none; margin: 0; padding: 0; }
+        .issues-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 6px; background: #0f172a; }
+        .issues-list li.severity-error { border-right: 4px solid #f87171; }
+        .issues-list li.severity-warning { border-right: 4px solid #facc15; }
+        .issue-line { width: auto; flex: 0 0 auto; background: #334155; color: #38bdf8; border: none; border-radius: 6px; padding: 4px 10px; font-family: monospace; font-weight: bold; cursor: pointer; white-space: nowrap; }
+        .issue-line:hover { background: #475569; }
+        /* min-width:0 ضروري كي يقبل هذا العنصر الانكماش داخل flex بدل دفع فقاعة السطر بعرضه الكامل */
+        .issue-msg { flex: 1; min-width: 0; line-height: 1.5; }
+        .issue-msg .sev-tag { font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+        .severity-error .sev-tag { background: #7f1d1d; color: #fecaca; }
+        .severity-warning .sev-tag { background: #713f12; color: #fde68a; }
+        .summary-line { margin-bottom: 12px; font-weight: 600; }
+
+        /* بطاقة التقييم (المرحلة 4) */
+        .assessment-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 15px; }
+        .assessment-tile { background: #0f172a; border-radius: 8px; padding: 12px; text-align: center; }
+        .assessment-tile .tile-label { font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+        .assessment-tile .tile-value { font-size: 22px; font-weight: 800; }
+        .grade-A, .grade-B { color: #4ade80; }
+        .grade-C, .grade-D { color: #facc15; }
+        .grade-E, .grade-F { color: #f87171; }
+
+        /* Responsive: الجوال */
+        @media (max-width: 640px) {
+            body { padding: 0 10px 20px; }
+            .header h1 { font-size: 19px; }
+            .main-card { padding: 14px; }
+            .actions button { flex: 1 1 100%; }
+            #stopBtn { flex: 1 1 100%; }
+            .dashboard { grid-template-columns: 1fr; }
+            .full-width { grid-column: span 1; }
+            .assessment-grid { grid-template-columns: repeat(2, 1fr); }
+            #codeEditor { height: 260px; }
+            .topbar .brand { font-size: 16px; }
+        }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <div class="header">
-            <h1>🔍 منصة فحص وتدقيق الأكواد البرمجية للطلاب</h1>
-            <p style="color: #94a3b8; margin: 0;">مراجعة الأمان، حساب الديون التقنية، وشرح الأخطاء بالذكاء الاصطناعي</p>
+        <div class="topbar">
+            <div class="logo">🔍</div>
+            <div class="brand">Code<span>Checker</span> - فاحص الأكواد</div>
         </div>
-        
+
+        <div class="header">
+            <h1>منصة فحص وتشغيل وتصحيح أكواد الطلاب</h1>
+            <p>مجانية بالكامل — فحص الجودة، حساب الديون التقنية، وشرح الأخطاء بالذكاء الاصطناعي</p>
+        </div>
+
         <div class="main-card">
             <div style="margin-bottom: 15px;">
                 <label for="languageSelect">اختر اللغة البرمجية:</label>
                 <select id="languageSelect">
                     <option value="python">Python</option>
                     <option value="javascript">JavaScript</option>
+                    <option value="c">C</option>
+                    <option value="cpp">C++</option>
+                    <option value="html">HTML</option>
+                    <option value="json">JSON</option>
                 </select>
             </div>
 
@@ -65,20 +126,48 @@
             <div class="actions">
                 <button id="runBtn">▶ تشغيل</button>
                 <button id="stopBtn">■ إيقاف</button>
-                <button id="checkBtn">ابدأ التحليل الشامل للمشروع</button>
+                <button id="analyzeBtn">🩺 فحص الكود</button>
+                <button id="checkBtn">🤖 ابدأ التحليل الشامل بالذكاء الاصطناعي</button>
             </div>
-            <div class="run-status">يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.</div>
+            <div class="hint" id="runHint">يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.</div>
 
             <div id="outputCard" class="service-card output-card">
                 <div class="card-title text-green">🖥️ المخرجات</div>
                 <pre><code id="runOutput"></code></pre>
-                <div id="runStatus" class="run-status"></div>
+                <div id="runStatus" class="hint"></div>
+            </div>
+
+            <!-- نتائج فحص الكود (المرحلتان 3 و4) -->
+            <div id="resultsCard" class="service-card results-card">
+                <div class="card-title text-blue">🩺 نتائج الفحص</div>
+                <div id="analyzeSummary" class="summary-line"></div>
+                <ul id="issuesList" class="issues-list"></ul>
+
+                <div class="card-title text-green" style="margin-top: 20px;">📊 بطاقة تقييم الكود</div>
+                <div class="assessment-grid">
+                    <div class="assessment-tile">
+                        <div class="tile-label">درجة الكود</div>
+                        <div class="tile-value" id="scoreGrade">-</div>
+                    </div>
+                    <div class="assessment-tile">
+                        <div class="tile-label">التعقيد الحسابي</div>
+                        <div class="tile-value" id="complexityValue">-</div>
+                    </div>
+                    <div class="assessment-tile">
+                        <div class="tile-label">الديون التقنية</div>
+                        <div class="tile-value" id="techDebtValue" style="font-size: 16px;">-</div>
+                    </div>
+                    <div class="assessment-tile">
+                        <div class="tile-label">الأسطر (كود / إجمالي)</div>
+                        <div class="tile-value" id="linesValue" style="font-size: 16px;">-</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- لوحة التحكم والخدمات البرمجية المتقدمة -->
+        <!-- لوحة التحكم والخدمات البرمجية المتقدمة (تحليل الذكاء الاصطناعي) -->
         <div id="devDashboard" class="dashboard">
-            
+
             <div class="service-card full-width" style="border-right: 4px solid #f87171;">
                 <div class="card-title text-red" id="errorTitle">🔎 حالة وموضع الخطأ البرمجي</div>
                 <p id="errorExplanation" style="margin: 0; line-height: 1.6;"></p>
@@ -117,37 +206,55 @@
         // ===== محرر Monaco =====
         const SAMPLES = {
             python: 'def greet(name):\n    return f"مرحباً {name}"\n\nprint(greet("طالب"))\n',
-            javascript: 'function greet(name) {\n  return `مرحباً ${name}`;\n}\n\nconsole.log(greet("طالب"));\n'
+            javascript: 'function greet(name) {\n  return `مرحباً ${name}`;\n}\n\nconsole.log(greet("طالب"));\n',
+            c: '#include <stdio.h>\n\nint main() {\n    printf("مرحباً طالب\\n");\n    return 0;\n}\n',
+            cpp: '#include <iostream>\n\nint main() {\n    std::cout << "مرحباً طالب" << std::endl;\n    return 0;\n}\n',
+            html: '<!DOCTYPE html>\n<html>\n  <head><title>صفحتي</title></head>\n  <body>\n    <h1>مرحباً طالب</h1>\n  </body>\n</html>\n',
+            json: '{\n  "name": "طالب",\n  "grade": 10\n}\n'
         };
+        // لغة Monaco المستخدمة لكل خيار (Monaco لا يملك وضعاً منفصلاً لـ C، فيُستخدم وضع cpp لكليهما)
+        const MONACO_LANG = { python: "python", javascript: "javascript", c: "cpp", cpp: "cpp", html: "html", json: "json" };
+        // اللغات التي يمكن تشغيلها داخل المتصفح مباشرة، وطريقة كل منها
+        const RUNNABLE = { python: "pyodide", javascript: "worker", c: "piston", cpp: "piston" };
+
         const languageSelect = document.getElementById("languageSelect");
         let editor = null; window.editor = null;
 
+        // إخبار Monaco كيف يحمّل عمّال اللغة (JSON/HTML/JS) من المسار المحلي بدل CDN
+        window.MonacoEnvironment = {
+            getWorkerUrl: function () {
+                return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+                    self.MonacoEnvironment = { baseUrl: '${window.location.origin}/monaco/' };
+                    importScripts('${window.location.origin}/monaco/vs/base/worker/workerMain.js');
+                `)}`;
+            }
+        };
         require.config({ paths: { vs: "/monaco/vs" } });
         require(["vs/editor/editor.main"], () => {
             window.editor = editor = monaco.editor.create(document.getElementById("codeEditor"), {
                 value: SAMPLES[languageSelect.value],
-                language: languageSelect.value,
+                language: MONACO_LANG[languageSelect.value],
                 theme: "vs-dark",
                 automaticLayout: true,
                 minimap: { enabled: false },
+                wordWrap: "on",
                 fontSize: 15
             });
         });
 
-        languageSelect.addEventListener("change", () => {
-            if (!editor) return;
-            const lang = languageSelect.value;
-            const current = editor.getValue();
-            // استبدال الكود بالمثال فقط إذا لم يعدّله الطالب
-            if (!current.trim() || Object.values(SAMPLES).includes(current)) editor.setValue(SAMPLES[lang]);
-            monaco.editor.setModelLanguage(editor.getModel(), lang);
+        // إعادة رسم المحرر بشكل صريح عند تغيّر حجم النافذة (مثل تدوير الجوال)
+        // كضمان إضافي بجانب automaticLayout حتى لا يبقى المحرر بعرض قديم أوسع من الشاشة
+        let resizeTimer = null;
+        window.addEventListener("resize", () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => { if (editor) editor.layout(); }, 100);
         });
 
         function getCode() {
             return editor ? editor.getValue() : "";
         }
 
-        // ===== التشغيل داخل المتصفح (Web Worker معزول، لا شيء يُنفَّذ على الخادم) =====
+        // ===== التشغيل داخل المتصفح (Web Worker معزول أو Piston، لا شيء يُنفَّذ على خادم Flask) =====
         const RUN_TIMEOUT_MS = 10000;
         const WORKER_SOURCES = {
             javascript: `
@@ -195,6 +302,30 @@
         const workers = {};   // عامل واحد لكل لغة (حتى لا يُعاد تحميل Pyodide في كل تشغيل)
         let activeRun = null;
 
+        // يجب تعريف هذه الدالة بعد تعريف runBtn/stopBtn/outputCard أعلاه لأنها تستخدمها
+        function updateRunAvailability() {
+            const lang = languageSelect.value;
+            const runnable = !!RUNNABLE[lang];
+            runBtn.disabled = !runnable;
+            runBtn.style.display = runnable ? "" : "none";
+            document.getElementById("runHint").textContent = runnable
+                ? "يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم."
+                : "التشغيل غير متاح لهذه اللغة حالياً، استخدم زر «فحص الكود».";
+        }
+
+        languageSelect.addEventListener("change", () => {
+            if (!editor) return;
+            const lang = languageSelect.value;
+            const current = editor.getValue();
+            // استبدال الكود بالمثال فقط إذا لم يعدّله الطالب
+            if (!current.trim() || Object.values(SAMPLES).includes(current)) editor.setValue(SAMPLES[lang]);
+            monaco.editor.setModelLanguage(editor.getModel(), MONACO_LANG[lang]);
+            updateRunAvailability();
+            document.getElementById("resultsCard").style.display = "none";
+            outputCard.style.display = "none";
+        });
+        updateRunAvailability();
+
         function getWorker(lang) {
             if (!workers[lang]) {
                 const url = URL.createObjectURL(new Blob([WORKER_SOURCES[lang]], { type: "text/javascript" }));
@@ -225,7 +356,7 @@
         function finishRun(message) {
             if (!activeRun) return;
             clearTimeout(activeRun.timer);
-            activeRun.worker.onmessage = null;
+            if (activeRun.worker) activeRun.worker.onmessage = null;
             activeRun = null;
             runStatus.textContent = message;
             runBtn.disabled = false;
@@ -236,26 +367,19 @@
         function stopRun(message) {
             if (!activeRun) return;
             const lang = activeRun.lang;
+            const controller = activeRun.abortController;
             finishRun(message);
-            killWorker(lang);
+            if (lang) killWorker(lang);
+            if (controller) controller.abort();
         }
 
-        runBtn.addEventListener("click", async () => {
-            const code = getCode();
-            if (!code.trim()) return alert("الرجاء إدخال الكود أولاً!");
-            const lang = languageSelect.value;
-
-            runOutput.textContent = "";
-            outputCard.style.display = "block";
-            runBtn.disabled = true;
-            stopBtn.style.display = "block";
-
+        // ---- تشغيل Python/JavaScript عبر Web Worker محلي ----
+        async function runInWorker(lang, code) {
             const worker = getWorker(lang);
             activeRun = { lang, worker, timer: null };
             const run = activeRun;
 
             runBtn.innerText = lang === "python" ? "جاري تحميل بيئة بايثون..." : "جاري التشغيل...";
-            runStatus.textContent = "";
             try {
                 await worker.readyPromise;
             } catch (err) {
@@ -279,6 +403,94 @@
                 stopRun("تم الإيقاف بسبب تجاوز الوقت.");
             }, RUN_TIMEOUT_MS);
             worker.postMessage({ code });
+        }
+
+        // ---- تشغيل C/C++ عبر خدمة Piston العامة (تُستدعى من متصفح الطالب مباشرة) ----
+        const PISTON_URL = "https://emkc.org/api/v2/piston/execute";
+        const PISTON_RUNTIMES_URL = "https://emkc.org/api/v2/piston/runtimes";
+        let pistonVersions = null; // { c: "10.2.0", cpp: "10.2.0" }
+
+        async function getPistonVersion(lang, signal) {
+            if (!pistonVersions) {
+                try {
+                    const res = await fetch(PISTON_RUNTIMES_URL, { signal });
+                    const runtimes = await res.json();
+                    pistonVersions = {};
+                    for (const rt of runtimes) {
+                        const names = [rt.language, ...(rt.aliases || [])];
+                        if (names.includes("c")) pistonVersions.c = rt.version;
+                        if (names.includes("cpp") || names.includes("c++")) pistonVersions.cpp = rt.version;
+                    }
+                } catch (err) {
+                    pistonVersions = {}; // سنستخدم "*" كحل بديل أدناه
+                }
+            }
+            return pistonVersions[lang] || "*";
+        }
+
+        async function runViaPiston(lang, code) {
+            const controller = new AbortController();
+            activeRun = { lang: null, worker: null, timer: null, abortController: controller };
+            const run = activeRun;
+
+            runBtn.innerText = "جاري الاتصال بخدمة التشغيل...";
+            run.timer = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
+
+            try {
+                const version = await getPistonVersion(lang, controller.signal);
+                if (activeRun !== run) return;
+                const response = await fetch(PISTON_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        language: lang,
+                        version: version,
+                        files: [{ content: code }]
+                    })
+                });
+                if (activeRun !== run) return;
+                if (!response.ok) throw new Error("رمز استجابة غير متوقع: " + response.status);
+                const data = await response.json();
+
+                if (data.compile && data.compile.stderr) appendOutput(data.compile.stderr, "stderr");
+                if (data.run) {
+                    if (data.run.stdout) appendOutput(data.run.stdout, "stdout");
+                    if (data.run.stderr) appendOutput(data.run.stderr, "stderr");
+                    if (!data.run.stdout && !data.run.stderr && !(data.compile && data.compile.stderr)) {
+                        appendOutput("(لا توجد مخرجات)\n");
+                    }
+                }
+                finishRun(data.run ? `انتهى التشغيل (كود الخروج: ${data.run.code})` : "انتهى التشغيل.");
+            } catch (err) {
+                if (activeRun !== run) return; // تم الإيقاف يدوياً أو بسبب المهلة، تمت معالجته في stopRun بالفعل
+                if (err.name === "AbortError") {
+                    appendOutput(`\n⏱️ تم إيقاف التشغيل: تجاوز الحد الزمني (${RUN_TIMEOUT_MS / 1000} ثوانٍ) أو تعذّر الاتصال بخدمة Piston.\n`, "stderr");
+                } else {
+                    appendOutput("\nتعذّر الاتصال بخدمة التشغيل الخارجية (Piston): " + err.message + "\n", "stderr");
+                }
+                finishRun("فشل التشغيل.");
+            }
+        }
+
+        runBtn.addEventListener("click", async () => {
+            const code = getCode();
+            if (!code.trim()) return alert("الرجاء إدخال الكود أولاً!");
+            const lang = languageSelect.value;
+            const mode = RUNNABLE[lang];
+            if (!mode) return;
+
+            runOutput.textContent = "";
+            outputCard.style.display = "block";
+            runBtn.disabled = true;
+            stopBtn.style.display = "block";
+            runStatus.textContent = "";
+
+            if (mode === "piston") {
+                await runViaPiston(lang, code);
+            } else {
+                await runInWorker(lang, code);
+            }
         });
 
         stopBtn.addEventListener("click", () => {
@@ -286,7 +498,87 @@
             stopRun("تم الإيقاف يدوياً.");
         });
 
-        // ===== التحليل الشامل عبر الخادم (فحص ساكن + ذكاء اصطناعي، بدون تشغيل) =====
+        // ===== فحص الكود (المرحلتان 3 و4): POST /analyze — فحص ساكن فقط، بدون تشغيل =====
+        const analyzeBtn = document.getElementById("analyzeBtn");
+        const resultsCard = document.getElementById("resultsCard");
+        const issuesList = document.getElementById("issuesList");
+        const analyzeSummary = document.getElementById("analyzeSummary");
+
+        function jumpToLine(line) {
+            if (!editor) return;
+            editor.revealLineInCenter(line);
+            editor.setPosition({ lineNumber: line, column: 1 });
+            editor.focus();
+        }
+
+        function renderAnalysis(data) {
+            resultsCard.style.display = "block";
+            analyzeSummary.textContent = data.summary || "";
+            issuesList.innerHTML = "";
+            (data.errors || []).forEach((issue) => {
+                const li = document.createElement("li");
+                li.className = "severity-" + (issue.severity === "error" ? "error" : "warning");
+                const lineBtn = document.createElement("button");
+                lineBtn.className = "issue-line";
+                lineBtn.textContent = "سطر " + issue.line;
+                lineBtn.addEventListener("click", () => jumpToLine(issue.line));
+                const msg = document.createElement("span");
+                msg.className = "issue-msg";
+                const tag = document.createElement("span");
+                tag.className = "sev-tag";
+                tag.textContent = issue.severity === "error" ? "خطأ" : "تحذير";
+                // عزل نص الرسالة في عنصر مستقل بـ dir="auto" يمنع اختلاط اتجاه الكتابة
+                // عند مزج رسائل الأدوات الإنجليزية (ruff/cppcheck) مع شارة الخطأ العربية
+                const msgText = document.createElement("span");
+                msgText.setAttribute("dir", "auto");
+                msgText.textContent = issue.message;
+                msg.appendChild(tag);
+                msg.appendChild(msgText);
+                li.appendChild(lineBtn);
+                li.appendChild(msg);
+                issuesList.appendChild(li);
+            });
+
+            const grade = document.getElementById("scoreGrade");
+            grade.textContent = `${data.complexity.score} (${data.score}/10)`;
+            grade.className = "tile-value grade-" + data.complexity.score;
+
+            const complexityEl = document.getElementById("complexityValue");
+            complexityEl.textContent = `${data.complexity.value} - ${data.complexity.label}`;
+            complexityEl.className = "tile-value grade-" + data.complexity.score;
+
+            document.getElementById("techDebtValue").textContent = data.technical_debt;
+            document.getElementById("linesValue").textContent = `${data.lines.code} / ${data.lines.total}`;
+        }
+
+        analyzeBtn.addEventListener("click", async () => {
+            const code = getCode();
+            if (!code.trim()) return alert("الرجاء إدخال الكود أولاً!");
+            const lang = languageSelect.value;
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerText = "جاري الفحص...";
+            try {
+                const response = await fetch("/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ language: lang, code })
+                });
+                const data = await response.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    renderAnalysis(data);
+                }
+            } catch (err) {
+                alert("فشل الاتصال بالسيرفر أثناء الفحص، تأكد من تشغيله.");
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerText = "🩺 فحص الكود";
+            }
+        });
+
+        // ===== التحليل الشامل عبر الذكاء الاصطناعي (POST /api/check-code) =====
         document.getElementById("checkBtn").addEventListener("click", async () => {
             const btn = document.getElementById("checkBtn");
             const dashboard = document.getElementById("devDashboard");
@@ -319,17 +611,19 @@
                     document.getElementById("solutionSteps").innerHTML = ai.solution_steps;
                     document.getElementById("securityCheck").innerText = ai.security_check;
                     document.getElementById("fixedCodeDisplay").innerText = ai.fixed_code;
-                    
+
                     document.getElementById("techDebtStats").innerHTML = `
                         <div>• تقييم جودة تنسيق الكود: <span class="badge">${ai.technical_debt.split('،')[1] || '8/10'}</span></div>
                         <div>• الوقت المقدر للإصلاح: <span class="badge" style="background:#b91c1c;">${ai.technical_debt.split('،')[0] || '5 دقائق'}</span></div>
                     `;
+                } else if (data.error) {
+                    alert("تحليل الذكاء الاصطناعي غير متاح الآن: " + data.error);
                 }
 
             } catch (error) {
                 alert("فشل الاتصال بالسيرفر، تأكد من تشغيله بالأسفل.");
             } finally {
-                btn.innerText = "ابدأ التحليل الشامل للمشروع";
+                btn.innerText = "🤖 ابدأ التحليل الشامل بالذكاء الاصطناعي";
                 btn.disabled = false;
             }
         });
