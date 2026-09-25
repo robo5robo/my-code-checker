@@ -285,6 +285,52 @@ def compute_technical_debt(errors, complexity_value):
     return f"{minutes} دقيقة"
 
 
+def get_ai_explanation(language, errors, score, complexity):
+    """شرح الأخطاء بالذكاء الاصطناعي: يجرب Claude أولاً ثم Gemini كاحتياط، ويعيد None إن لم يتوفر أي منهما."""
+    n_err = sum(1 for e in errors if e["severity"] == "error")
+    n_warn = sum(1 for e in errors if e["severity"] == "warning")
+    errors_sample = "; ".join(e["message"] for e in errors[:5]) if errors else "لا توجد أخطاء"
+
+    prompt = (
+        f"أنت مساعد تعليمي لطلاب البرمجة. فيما يلي نتائج فحص كود بلغة {language}:\n"
+        f"الأخطاء: {n_err} خطأ و{n_warn} تحذير — {errors_sample}\n"
+        f"درجة الكود: {score}/10\n"
+        f"التعقيد: {complexity['value']} (تصنيف {complexity['score']} - {complexity['label']})\n\n"
+        "اشرح بالعربية بأسلوب مبسط ومشجع:\n"
+        "1. ما المشكلة الرئيسية في الكود (جملة واحدة)\n"
+        "2. كيف يصلحها الطالب (خطوات بسيطة)\n"
+        "3. نصيحة واحدة لتحسين أسلوب الكتابة\n"
+        "كن موجزاً (لا تتجاوز 150 كلمة)"
+    )
+
+    # محاولة 1: Claude API (claude-haiku-20240307 للسرعة والتوفير)
+    claude_key = os.environ.get("CLAUDE_API_KEY")
+    if claude_key:
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=claude_key)
+            msg = client.messages.create(
+                model="claude-haiku-20240307",
+                max_tokens=400,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return msg.content[0].text.strip()
+        except Exception:
+            pass
+
+    # محاولة 2: Gemini API (gemini-1.5-flash الأسرع والأوفر)
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception:
+            pass
+
+    return None
+
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     data = request.get_json()
@@ -317,17 +363,22 @@ def analyze():
             errors = analyze_json_errors(code)
             complexity_value, complexity_rank = 1, "A"
 
+        score = compute_score(errors)
+        complexity_obj = {
+            "score": complexity_rank,
+            "value": complexity_value,
+            "label": _complexity_label(complexity_rank),
+        }
+        ai_explanation = get_ai_explanation(language, errors, score, complexity_obj)
+
         return jsonify({
             "errors": errors,
-            "score": compute_score(errors),
+            "score": score,
             "summary": compute_summary(errors),
-            "complexity": {
-                "score": complexity_rank,
-                "value": complexity_value,
-                "label": _complexity_label(complexity_rank),
-            },
+            "complexity": complexity_obj,
             "technical_debt": compute_technical_debt(errors, complexity_value),
             "lines": count_lines(code, language),
+            "ai_explanation": ai_explanation,
         })
     finally:
         if os.path.exists(file_path):

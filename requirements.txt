@@ -6,3 +6,4 @@ gunicorn
 ruff
 lizard
 radon
+anthropic

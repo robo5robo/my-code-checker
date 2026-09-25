@@ -77,6 +77,23 @@
         .grade-C, .grade-D { color: #facc15; }
         .grade-E, .grade-F { color: #f87171; }
 
+        /* بطاقة شرح المساعد الذكي (المرحلة 5) */
+        .ai-card { margin-top: 20px; background: #0f2744; border: 1px solid #1d4ed8; border-radius: 12px; padding: 20px; display: none; }
+        .ai-card .card-title { color: #93c5fd; border-color: #1d4ed8; }
+        .ai-card .ai-content { line-height: 1.9; white-space: pre-wrap; color: #e2e8f0; }
+        .ai-loading { color: #93c5fd; font-style: italic; }
+
+        /* إشعار مفتاح Judge0 */
+        .judge0-notice { background: #1a1a35; border: 1px solid #4c4caa; border-radius: 8px; padding: 14px; margin-top: 10px; display: none; }
+        .judge0-notice p { margin: 0 0 10px; color: #a5b4fc; font-size: 14px; }
+        .judge0-key-input { width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 10px 12px; color: #fff; font-size: 14px; margin-bottom: 8px; direction: ltr; text-align: left; }
+        .judge0-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .judge0-actions button { flex: 0 0 auto; width: auto; padding: 8px 16px; font-size: 14px; margin-top: 0; background: #4338ca; }
+        .judge0-actions button:hover { background: #3730a3; }
+        .judge0-link { color: #818cf8; font-size: 12px; text-decoration: none; }
+        .judge0-link:hover { text-decoration: underline; }
+        .judge0-saved { color: #4ade80; font-size: 13px; display: none; }
+
         /* Responsive: الجوال */
         @media (max-width: 640px) {
             body { padding: 0 10px 20px; }
@@ -113,6 +130,11 @@
                     <option value="javascript">JavaScript</option>
                     <option value="c">C</option>
                     <option value="cpp">C++</option>
+                    <option value="java">Java</option>
+                    <option value="go">Go</option>
+                    <option value="rust">Rust</option>
+                    <option value="php">PHP</option>
+                    <option value="ruby">Ruby</option>
                     <option value="html">HTML</option>
                     <option value="json">JSON</option>
                 </select>
@@ -131,13 +153,25 @@
             </div>
             <div class="hint" id="runHint">يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.</div>
 
+            <!-- إشعار مفتاح Judge0 (يظهر عند اختيار لغة تحتاجه) -->
+            <div class="judge0-notice" id="judge0Notice">
+                <p>🔑 هذه اللغة تُشغَّل عبر Judge0 API. أضف مفتاح RapidAPI المجاني مرة واحدة ويُحفظ في متصفحك.</p>
+                <input class="judge0-key-input" id="judge0KeyInput" type="password" placeholder="أدخل مفتاح X-RapidAPI-Key هنا" autocomplete="off">
+                <div class="judge0-actions">
+                    <button id="saveJudge0KeyBtn">💾 حفظ المفتاح</button>
+                    <button id="clearJudge0KeyBtn" style="background:#7f1d1d;display:none;">🗑️ حذف المفتاح</button>
+                    <a class="judge0-link" href="https://rapidapi.com/judge0-official/api/judge0-ce" target="_blank" rel="noopener">احصل على مفتاح مجاني من rapidapi.com ↗</a>
+                </div>
+                <div class="judge0-saved" id="judge0Saved">✅ تم حفظ المفتاح — يمكنك الآن تشغيل الكود</div>
+            </div>
+
             <div id="outputCard" class="service-card output-card">
                 <div class="card-title text-green">🖥️ المخرجات</div>
                 <pre><code id="runOutput"></code></pre>
                 <div id="runStatus" class="hint"></div>
             </div>
 
-            <!-- نتائج فحص الكود (المرحلتان 3 و4) -->
+            <!-- نتائج فحص الكود (المرحلتان 3 و4 و5) -->
             <div id="resultsCard" class="service-card results-card">
                 <div class="card-title text-blue">🩺 نتائج الفحص</div>
                 <div id="analyzeSummary" class="summary-line"></div>
@@ -162,6 +196,12 @@
                         <div class="tile-value" id="linesValue" style="font-size: 16px;">-</div>
                     </div>
                 </div>
+            </div>
+
+            <!-- بطاقة شرح المساعد الذكي (المرحلة 5) -->
+            <div id="aiCard" class="ai-card">
+                <div class="card-title">✨ شرح المساعد الذكي</div>
+                <div id="aiContent" class="ai-content"></div>
             </div>
         </div>
 
@@ -209,13 +249,29 @@
             javascript: 'function greet(name) {\n  return `مرحباً ${name}`;\n}\n\nconsole.log(greet("طالب"));\n',
             c: '#include <stdio.h>\n\nint main() {\n    printf("مرحباً طالب\\n");\n    return 0;\n}\n',
             cpp: '#include <iostream>\n\nint main() {\n    std::cout << "مرحباً طالب" << std::endl;\n    return 0;\n}\n',
+            java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("مرحباً طالب");\n    }\n}\n',
+            go: 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("مرحباً طالب")\n}\n',
+            rust: 'fn main() {\n    println!("مرحباً طالب");\n}\n',
+            php: '<?php\necho "مرحباً طالب\\n";\n',
+            ruby: 'puts "مرحباً طالب"\n',
             html: '<!DOCTYPE html>\n<html>\n  <head><title>صفحتي</title></head>\n  <body>\n    <h1>مرحباً طالب</h1>\n  </body>\n</html>\n',
             json: '{\n  "name": "طالب",\n  "grade": 10\n}\n'
         };
         // لغة Monaco المستخدمة لكل خيار (Monaco لا يملك وضعاً منفصلاً لـ C، فيُستخدم وضع cpp لكليهما)
-        const MONACO_LANG = { python: "python", javascript: "javascript", c: "cpp", cpp: "cpp", html: "html", json: "json" };
-        // اللغات التي يمكن تشغيلها داخل المتصفح مباشرة، وطريقة كل منها
-        const RUNNABLE = { python: "pyodide", javascript: "worker", c: "piston", cpp: "piston" };
+        const MONACO_LANG = {
+            python: "python", javascript: "javascript",
+            c: "cpp", cpp: "cpp",
+            java: "java", go: "go", rust: "rust", php: "php", ruby: "ruby",
+            html: "html", json: "json"
+        };
+        // طريقة تشغيل كل لغة: pyodide/worker/piston/judge0 — اللغات غير المذكورة لا يتوفر لها تشغيل
+        const RUNNABLE = {
+            python: "pyodide", javascript: "worker",
+            c: "piston", cpp: "piston",
+            java: "judge0", go: "judge0", rust: "judge0", php: "judge0", ruby: "judge0"
+        };
+        // معرّفات لغات Judge0 CE (RapidAPI)
+        const JUDGE0_LANGUAGE_IDS = { java: 62, go: 60, rust: 73, php: 68, ruby: 72 };
 
         const languageSelect = document.getElementById("languageSelect");
         let editor = null; window.editor = null;
@@ -305,13 +361,54 @@
         // يجب تعريف هذه الدالة بعد تعريف runBtn/stopBtn/outputCard أعلاه لأنها تستخدمها
         function updateRunAvailability() {
             const lang = languageSelect.value;
-            const runnable = !!RUNNABLE[lang];
+            const mode = RUNNABLE[lang];
+            const runnable = !!mode;
             runBtn.disabled = !runnable;
             runBtn.style.display = runnable ? "" : "none";
             document.getElementById("runHint").textContent = runnable
-                ? "يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم."
+                ? (mode === "judge0"
+                    ? "يتم تشغيل الكود عبر Judge0 API (يُرسل لخادم خارجي من متصفحك)."
+                    : "يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.")
                 : "التشغيل غير متاح لهذه اللغة حالياً، استخدم زر «فحص الكود».";
+            // إظهار/إخفاء إشعار مفتاح Judge0
+            const notice = document.getElementById("judge0Notice");
+            if (mode === "judge0") {
+                notice.style.display = "block";
+                updateJudge0KeyUI();
+            } else {
+                notice.style.display = "none";
+            }
         }
+
+        // ===== إدارة مفتاح Judge0 (يُحفظ في localStorage — مفتاح شخصي للمستخدم) =====
+        function updateJudge0KeyUI() {
+            const key = localStorage.getItem("judge0_api_key");
+            const savedEl = document.getElementById("judge0Saved");
+            const clearBtn = document.getElementById("clearJudge0KeyBtn");
+            const input = document.getElementById("judge0KeyInput");
+            if (key) {
+                savedEl.style.display = "block";
+                clearBtn.style.display = "inline-block";
+                input.value = "";
+                input.placeholder = "المفتاح محفوظ — أدخل مفتاحاً جديداً للاستبدال";
+            } else {
+                savedEl.style.display = "none";
+                clearBtn.style.display = "none";
+                input.placeholder = "أدخل مفتاح X-RapidAPI-Key هنا";
+            }
+        }
+
+        document.getElementById("saveJudge0KeyBtn").addEventListener("click", () => {
+            const val = document.getElementById("judge0KeyInput").value.trim();
+            if (!val) return alert("يُرجى إدخال المفتاح أولاً.");
+            localStorage.setItem("judge0_api_key", val);
+            updateJudge0KeyUI();
+        });
+
+        document.getElementById("clearJudge0KeyBtn").addEventListener("click", () => {
+            localStorage.removeItem("judge0_api_key");
+            updateJudge0KeyUI();
+        });
 
         languageSelect.addEventListener("change", () => {
             if (!editor) return;
@@ -473,6 +570,67 @@
             }
         }
 
+        // ---- تشغيل Java/Go/Rust/PHP/Ruby عبر Judge0 CE API (تُستدعى من متصفح الطالب) ----
+        const JUDGE0_URL = "https://judge0-ce.p.rapidapi.com/submissions?wait=true";
+
+        async function runViaJudge0(lang, code) {
+            const apiKey = localStorage.getItem("judge0_api_key");
+            if (!apiKey) {
+                document.getElementById("judge0Notice").style.display = "block";
+                document.getElementById("judge0KeyInput").focus();
+                appendOutput("⚠️ يُرجى إضافة مفتاح Judge0 أولاً (انظر الحقل أعلاه).\n", "stderr");
+                return finishRun("مطلوب مفتاح Judge0.");
+            }
+
+            const controller = new AbortController();
+            activeRun = { lang: null, worker: null, timer: null, abortController: controller };
+            const run = activeRun;
+
+            runBtn.innerText = "جاري إرسال الكود لخدمة التشغيل...";
+            run.timer = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
+
+            try {
+                const response = await fetch(JUDGE0_URL, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-RapidAPI-Key": apiKey,
+                        "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com"
+                    },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        source_code: code,
+                        language_id: JUDGE0_LANGUAGE_IDS[lang],
+                        stdin: ""
+                    })
+                });
+                if (activeRun !== run) return;
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        localStorage.removeItem("judge0_api_key");
+                        updateJudge0KeyUI();
+                        throw new Error("مفتاح Judge0 غير صالح أو منتهي — يُرجى إدخال مفتاح جديد.");
+                    }
+                    throw new Error("رمز استجابة غير متوقع: " + response.status);
+                }
+                const data = await response.json();
+                if (data.compile_output) appendOutput(data.compile_output, "stderr");
+                if (data.stdout) appendOutput(data.stdout, "stdout");
+                if (data.stderr) appendOutput(data.stderr, "stderr");
+                if (!data.stdout && !data.stderr && !data.compile_output) appendOutput("(لا توجد مخرجات)\n");
+                const statusDesc = data.status ? data.status.description : "انتهى التشغيل";
+                finishRun(statusDesc);
+            } catch (err) {
+                if (activeRun !== run) return;
+                if (err.name === "AbortError") {
+                    appendOutput(`\n⏱️ تم إيقاف التشغيل: تجاوز الحد الزمني (${RUN_TIMEOUT_MS / 1000} ثوانٍ).\n`, "stderr");
+                } else {
+                    appendOutput("\nتعذّر التشغيل عبر Judge0: " + err.message + "\n", "stderr");
+                }
+                finishRun("فشل التشغيل.");
+            }
+        }
+
         runBtn.addEventListener("click", async () => {
             const code = getCode();
             if (!code.trim()) return alert("الرجاء إدخال الكود أولاً!");
@@ -488,6 +646,8 @@
 
             if (mode === "piston") {
                 await runViaPiston(lang, code);
+            } else if (mode === "judge0") {
+                await runViaJudge0(lang, code);
             } else {
                 await runInWorker(lang, code);
             }
@@ -549,6 +709,16 @@
 
             document.getElementById("techDebtValue").textContent = data.technical_debt;
             document.getElementById("linesValue").textContent = `${data.lines.code} / ${data.lines.total}`;
+
+            // بطاقة شرح المساعد الذكي (المرحلة 5)
+            const aiCard = document.getElementById("aiCard");
+            const aiContent = document.getElementById("aiContent");
+            if (data.ai_explanation) {
+                aiCard.style.display = "block";
+                aiContent.textContent = data.ai_explanation;
+            } else {
+                aiCard.style.display = "none";
+            }
         }
 
         analyzeBtn.addEventListener("click", async () => {
@@ -558,6 +728,13 @@
 
             analyzeBtn.disabled = true;
             analyzeBtn.innerText = "جاري الفحص...";
+
+            // إظهار حالة "جاري التحليل" في بطاقة AI مباشرة
+            const aiCard = document.getElementById("aiCard");
+            const aiContent = document.getElementById("aiContent");
+            aiCard.style.display = "block";
+            aiContent.innerHTML = '<span class="ai-loading">⏳ جاري التحليل بالذكاء الاصطناعي...</span>';
+
             try {
                 const response = await fetch("/analyze", {
                     method: "POST",
@@ -566,11 +743,13 @@
                 });
                 const data = await response.json();
                 if (data.error) {
+                    aiCard.style.display = "none";
                     alert(data.error);
                 } else {
                     renderAnalysis(data);
                 }
             } catch (err) {
+                aiCard.style.display = "none";
                 alert("فشل الاتصال بالسيرفر أثناء الفحص، تأكد من تشغيله.");
             } finally {
                 analyzeBtn.disabled = false;
