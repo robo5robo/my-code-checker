@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,7 +32,7 @@
         button:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* محرر Monaco وأزرار التحكم */
-        #codeEditor { position: relative; height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; contain: layout paint; }
+        #codeEditor { position: relative; height: 320px; border: 1px solid #475569; border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; }
         .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
         .actions button { flex: 1 1 140px; }
         #runBtn { background: #16a34a; }
@@ -113,7 +113,7 @@
 </head>
 <body>
 
-    <div class="container">
+    <div class="container" dir="rtl">
         <div class="topbar">
             <div class="logo">🔍</div>
             <div class="brand">Code<span>Checker</span> - فاحص الأكواد</div>
@@ -291,22 +291,28 @@
         };
         require.config({ paths: { vs: "/monaco/vs" } });
         require(["vs/editor/editor.main"], () => {
-            window.editor = editor = monaco.editor.create(document.getElementById("codeEditor"), {
-                value: SAMPLES[languageSelect.value],
-                language: MONACO_LANG[languageSelect.value],
-                theme: "vs-dark",
-                automaticLayout: true,
-                minimap: { enabled: false },
-                wordWrap: "on",
-                fontSize: 15
+            // requestAnimationFrame يضمن اكتمال رسم DOM والخطوط قبل قياس Monaco للـ lineHeight
+            requestAnimationFrame(() => {
+                window.editor = editor = monaco.editor.create(document.getElementById("codeEditor"), {
+                    value: SAMPLES[languageSelect.value],
+                    language: MONACO_LANG[languageSelect.value],
+                    theme: "vs-dark",
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    wordWrap: "on",
+                    fontSize: 15
+                });
+                // تشخيص + إعادة layout بعد التهيئة
+                setTimeout(() => {
+                    if (editor) {
+                        editor.layout();
+                        const info = editor.getLayoutInfo();
+                        console.log('[Monaco] lineHeight:', info.lineHeight, 'h:', info.height, 'w:', info.width);
+                        const mtk = document.querySelector('.mtk1');
+                        if (mtk) console.log('[Monaco] .mtk1 color:', getComputedStyle(mtk).color);
+                    }
+                }, 200);
             });
-            // إعادة قياس + إلغاء أي انزياح تمرير RTL بعد تهيئة Monaco
-            setTimeout(() => {
-                if (editor) {
-                    editor.layout();
-                    editor.setScrollPosition({ scrollLeft: 0, scrollTop: 0 });
-                }
-            }, 50);
         });
 
         // إعادة رسم المحرر بشكل صريح عند تغيّر حجم النافذة (مثل تدوير الجوال)
