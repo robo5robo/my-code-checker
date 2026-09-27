@@ -27,6 +27,15 @@ MONACO_DIR = os.path.join(BASE_DIR, 'node_modules', 'monaco-editor', 'min')
 def home():
     return send_from_directory(BASE_DIR, 'index.html')
 
+@app.route('/health')
+def health():
+    return {
+        "status": "ok",
+        "gemini": "configured" if os.environ.get('GEMINI_API_KEY') else "missing",
+        "key_preview": os.environ.get('GEMINI_API_KEY', '')[:8] + "..."
+                       if os.environ.get('GEMINI_API_KEY') else "none"
+    }
+
 @app.route('/monaco/<path:filename>')
 def serve_monaco(filename):
     """تقديم ملفات Monaco من المجلد المحلي، أو redirect للـ CDN إن لم تكن موجودة (fallback لـ Render)."""
