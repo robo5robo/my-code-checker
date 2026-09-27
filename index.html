@@ -128,17 +128,26 @@
             <div style="margin-bottom: 15px;">
                 <label for="languageSelect">اختر اللغة البرمجية:</label>
                 <select id="languageSelect">
-                    <option value="python">Python</option>
-                    <option value="javascript">JavaScript</option>
-                    <option value="c">C</option>
-                    <option value="cpp">C++</option>
-                    <option value="java">Java</option>
-                    <option value="go">Go</option>
-                    <option value="rust">Rust</option>
-                    <option value="php">PHP</option>
-                    <option value="ruby">Ruby</option>
-                    <option value="html">HTML</option>
-                    <option value="json">JSON</option>
+                    <optgroup label="تعمل بدون مفتاح">
+                        <option value="python">Python</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="c">C</option>
+                        <option value="cpp">C++</option>
+                        <option value="html">HTML</option>
+                        <option value="json">JSON</option>
+                    </optgroup>
+                    <optgroup label="تحتاج مفتاح Judge0">
+                        <option value="java">Java</option>
+                        <option value="go">Go</option>
+                        <option value="rust">Rust</option>
+                        <option value="php">PHP</option>
+                        <option value="ruby">Ruby</option>
+                        <option value="csharp">C#</option>
+                        <option value="kotlin">Kotlin</option>
+                        <option value="swift">Swift</option>
+                        <option value="typescript">TypeScript</option>
+                        <option value="bash">Bash</option>
+                    </optgroup>
                 </select>
             </div>
 
@@ -259,23 +268,30 @@
             php: '<?php\necho "مرحباً طالب\\n";\n',
             ruby: 'puts "مرحباً طالب"\n',
             html: '<!DOCTYPE html>\n<html>\n  <head><title>صفحتي</title></head>\n  <body>\n    <h1>مرحباً طالب</h1>\n  </body>\n</html>\n',
-            json: '{\n  "name": "طالب",\n  "grade": 10\n}\n'
+            json: '{\n  "name": "طالب",\n  "grade": 10\n}\n',
+            csharp: 'using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("مرحباً طالب");\n    }\n}\n',
+            kotlin: 'fun main() {\n    println("مرحباً طالب")\n}\n',
+            swift: 'print("مرحباً طالب")\n',
+            typescript: 'const greet = (name: string): string => `مرحباً ${name}`;\nconsole.log(greet("طالب"));\n',
+            bash: 'echo "مرحباً طالب"\n'
         };
         // لغة Monaco المستخدمة لكل خيار (Monaco لا يملك وضعاً منفصلاً لـ C، فيُستخدم وضع cpp لكليهما)
         const MONACO_LANG = {
             python: "python", javascript: "javascript",
             c: "cpp", cpp: "cpp",
             java: "java", go: "go", rust: "rust", php: "php", ruby: "ruby",
-            html: "html", json: "json"
+            html: "html", json: "json",
+            csharp: "csharp", kotlin: "kotlin", swift: "swift", typescript: "typescript", bash: "shell"
         };
         // طريقة تشغيل كل لغة: pyodide/worker/piston/judge0 — اللغات غير المذكورة لا يتوفر لها تشغيل
         const RUNNABLE = {
             python: "pyodide", javascript: "worker",
             c: "piston", cpp: "piston",
-            java: "judge0", go: "judge0", rust: "judge0", php: "judge0", ruby: "judge0"
+            java: "judge0", go: "judge0", rust: "judge0", php: "judge0", ruby: "judge0",
+            csharp: "judge0", kotlin: "judge0", swift: "judge0", typescript: "judge0", bash: "judge0"
         };
         // معرّفات لغات Judge0 CE (RapidAPI)
-        const JUDGE0_LANGUAGE_IDS = { java: 62, go: 60, rust: 73, php: 68, ruby: 72 };
+        const JUDGE0_LANGUAGE_IDS = { java: 62, go: 60, rust: 73, php: 68, ruby: 72, csharp: 51, kotlin: 78, swift: 83, typescript: 74, bash: 46 };
 
         const languageSelect = document.getElementById("languageSelect");
         let editor = null; window.editor = null;
@@ -589,17 +605,9 @@
             }
         }
 
-        // ---- تشغيل Java/Go/Rust/PHP/Ruby عبر Judge0 CE API (تُستدعى من متصفح الطالب) ----
-        const JUDGE0_URL = "https://judge0-ce.p.rapidapi.com/submissions?wait=true";
-
+        // ---- تشغيل Java/Go/Rust/PHP/Ruby/C#/Kotlin/Swift/TypeScript/Bash عبر بروكسي /run-judge0 ----
         async function runViaJudge0(lang, code) {
             const apiKey = localStorage.getItem("judge0_api_key");
-            if (!apiKey) {
-                document.getElementById("judge0Notice").style.display = "block";
-                document.getElementById("judge0KeyInput").focus();
-                appendOutput("⚠️ يُرجى إضافة مفتاح Judge0 أولاً (انظر الحقل أعلاه).\n", "stderr");
-                return finishRun("مطلوب مفتاح Judge0.");
-            }
 
             const controller = new AbortController();
             activeRun = { lang: null, worker: null, timer: null, abortController: controller };
@@ -609,30 +617,39 @@
             run.timer = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
 
             try {
-                const response = await fetch(JUDGE0_URL, {
+                const headers = { "Content-Type": "application/json" };
+                if (apiKey) headers["X-Judge0-Key"] = apiKey;
+
+                const response = await fetch("/run-judge0", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-RapidAPI-Key": apiKey,
-                        "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com"
-                    },
+                    headers,
                     signal: controller.signal,
                     body: JSON.stringify({
-                        source_code: code,
+                        code,
                         language_id: JUDGE0_LANGUAGE_IDS[lang],
                         stdin: ""
                     })
                 });
                 if (activeRun !== run) return;
-                if (!response.ok) {
-                    if (response.status === 401 || response.status === 403) {
-                        localStorage.removeItem("judge0_api_key");
-                        updateJudge0KeyUI();
-                        throw new Error("مفتاح Judge0 غير صالح أو منتهي — يُرجى إدخال مفتاح جديد.");
-                    }
-                    throw new Error("رمز استجابة غير متوقع: " + response.status);
-                }
                 const data = await response.json();
+
+                if (data.error === "judge0_not_configured") {
+                    document.getElementById("judge0Notice").style.display = "block";
+                    document.getElementById("judge0KeyInput").focus();
+                    appendOutput("⚠️ يُرجى إضافة مفتاح Judge0 أولاً (انظر الحقل أعلاه).\n", "stderr");
+                    return finishRun("مطلوب مفتاح Judge0.");
+                }
+                if (data.error === "judge0_key_invalid") {
+                    localStorage.removeItem("judge0_api_key");
+                    updateJudge0KeyUI();
+                    appendOutput("\n" + data.message + "\n", "stderr");
+                    return finishRun("مفتاح غير صالح.");
+                }
+                if (data.error) {
+                    appendOutput("\nخطأ من خدمة Judge0: " + (data.message || data.error) + "\n", "stderr");
+                    return finishRun("فشل التشغيل.");
+                }
+
                 if (data.compile_output) appendOutput(data.compile_output, "stderr");
                 if (data.stdout) appendOutput(data.stdout, "stdout");
                 if (data.stderr) appendOutput(data.stderr, "stderr");

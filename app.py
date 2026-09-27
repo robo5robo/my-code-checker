@@ -3,6 +3,8 @@ import re
 import uuid
 import subprocess
 import json
+import urllib.request
+import urllib.error
 from flask import Flask, request, jsonify, send_from_directory, redirect
 from flask_cors import CORS
 import google.generativeai as genai
@@ -496,6 +498,51 @@ def check_code():
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+
+@app.route('/run-judge0', methods=['POST'])
+def run_judge0():
+    """بروكسي آمن لـ Judge0 CE API — يُمرّر الكود إلى Judge0 دون تنفيذه على الخادم."""
+    data = request.get_json()
+    if not data or 'code' not in data or 'language_id' not in data:
+        return jsonify({"error": "البيانات المرسلة غير مكتملة"}), 400
+
+    api_key = os.environ.get("JUDGE0_API_KEY") or request.headers.get("X-Judge0-Key", "").strip()
+    if not api_key:
+        return jsonify({
+            "error": "judge0_not_configured",
+            "message": "أضف مفتاح Judge0 لتفعيل هذه اللغة"
+        })
+
+    payload = json.dumps({
+        "source_code": data["code"],
+        "language_id": int(data["language_id"]),
+        "stdin": data.get("stdin", "")
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://judge0-ce.p.rapidapi.com/submissions?wait=true",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        return jsonify(result)
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return jsonify({
+                "error": "judge0_key_invalid",
+                "message": "مفتاح Judge0 غير صالح أو منتهي — يُرجى إدخال مفتاح جديد."
+            })
+        return jsonify({"error": f"HTTP {e.code}", "message": e.read().decode("utf-8", errors="replace")})
+    except Exception as e:
+        return jsonify({"error": "judge0_error", "message": str(e)})
+
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=False)
