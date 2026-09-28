@@ -14,10 +14,12 @@ from radon.complexity import cc_visit, cc_rank
 app = Flask(__name__)
 CORS(app)
 
-# إعداد مفتاح الذكاء الاصطناعي (يمكنك الحصول على مفتاح مجاني من Google AI Studio)
-# للمطوّر محلياً، يمكنك وضعه مباشرة هنا للتجربة التعليمية
-# اترك السطر هكذا تماماً ولا تضع مفتاحك الحقيقي هنا
+# إعداد مفتاح الذكاء الاصطناعي — من متغير البيئة GEMINI_API_KEY فقط
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+# Judge0: URL المحلي (فارغ = استخدام RapidAPI) والمفتاح — من متغيرات البيئة فقط
+JUDGE0_API_URL = os.environ.get('JUDGE0_API_URL', '')  # مثال: http://judge0-server:2358
+JUDGE0_API_KEY = os.environ.get('JUDGE0_API_KEY', '')  # مفتاح Judge0 من جانب الخادم
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMP_DIR = os.path.join(BASE_DIR, "temp_files")
@@ -501,17 +503,30 @@ def check_code():
 
 @app.route('/run-judge0', methods=['POST'])
 def run_judge0():
-    """بروكسي آمن لـ Judge0 CE API — يُمرّر الكود إلى Judge0 دون تنفيذه على الخادم."""
+    """بروكسي آمن لـ Judge0 — يدعم Judge0 المحلي (JUDGE0_API_URL) أو RapidAPI."""
     data = request.get_json()
     if not data or 'code' not in data or 'language_id' not in data:
         return jsonify({"error": "البيانات المرسلة غير مكتملة"}), 400
 
-    api_key = os.environ.get("JUDGE0_API_KEY") or request.headers.get("X-Judge0-Key", "").strip()
+    # مفتاح الخادم يأخذ الأولوية، ثم مفتاح المتصفح
+    api_key = JUDGE0_API_KEY or request.headers.get("X-Judge0-Key", "").strip()
     if not api_key:
         return jsonify({
             "error": "judge0_not_configured",
             "message": "أضف مفتاح Judge0 لتفعيل هذه اللغة"
         })
+
+    # وضع محلي (JUDGE0_API_URL مضبوط) أم RapidAPI
+    if JUDGE0_API_URL:
+        url = f"{JUDGE0_API_URL.rstrip('/')}/submissions?wait=true"
+        headers = {"Content-Type": "application/json", "X-Judge0-Key": api_key}
+    else:
+        url = "https://judge0-ce.p.rapidapi.com/submissions?wait=true"
+        headers = {
+            "Content-Type": "application/json",
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com"
+        }
 
     payload = json.dumps({
         "source_code": data["code"],
@@ -519,16 +534,7 @@ def run_judge0():
         "stdin": data.get("stdin", "")
     }).encode("utf-8")
 
-    req = urllib.request.Request(
-        "https://judge0-ce.p.rapidapi.com/submissions?wait=true",
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "X-RapidAPI-Key": api_key,
-            "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com"
-        },
-        method="POST"
-    )
+    req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             result = json.loads(resp.read().decode("utf-8"))
