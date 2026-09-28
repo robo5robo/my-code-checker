@@ -1,0 +1,64 @@
+services:
+
+  my-code-checker:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - JUDGE0_API_URL=http://judge0-server:2358
+      - JUDGE0_API_KEY=ise_secret_2024
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - judge0-server
+    restart: unless-stopped
+
+  judge0-server:
+    image: judge0/judge0:1.13.1
+    ports:
+      - "2358:2358"
+    environment:
+      - JUDGE0_AUTHN_HEADER=X-Judge0-Key
+      - JUDGE0_AUTHN_KEYS=ise_secret_2024
+      - REDIS_HOST=ise-redis
+      - POSTGRES_HOST=ise-postgres
+      - POSTGRES_DB=judge0
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0pass
+    depends_on:
+      - ise-redis
+      - ise-postgres
+      - judge0-workers
+    restart: unless-stopped
+
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    command: ["./scripts/workers"]
+    privileged: true
+    environment:
+      - REDIS_HOST=ise-redis
+      - POSTGRES_HOST=ise-postgres
+      - POSTGRES_DB=judge0
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0pass
+    depends_on:
+      - ise-redis
+      - ise-postgres
+    restart: unless-stopped
+
+  ise-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  ise-postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=judge0
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0pass
+    volumes:
+      - ise_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  ise_postgres_data:
