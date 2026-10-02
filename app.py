@@ -313,7 +313,11 @@ def _call_openai_compat(endpoint, api_key, model, messages, max_tokens=700):
     req = urllib.request.Request(
         endpoint,
         data=payload,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "groq-python/0.13.0",
+        },
         method="POST"
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
