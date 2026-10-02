@@ -6,7 +6,7 @@ echo ====================================
 echo.
 echo جاري تشغيل الخدمات...
 cd /d C:\proj_ise\my-code-checker
-docker-compose --env-file .env.local up -d
+docker-compose --env-file .env.local up -d --build
 echo.
 echo انتظر 40 ثانية حتى تجهز Judge0...
 timeout /t 40 /nobreak
