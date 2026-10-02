@@ -44,8 +44,25 @@
         .hint { color: #94a3b8; font-size: 13px; margin-top: 8px; }
 
         .output-card, .results-card { margin-top: 20px; display: none; }
-        .output-card pre { min-height: 60px; max-height: 320px; overflow-y: auto; }
-        .stderr { color: #f87171; }
+        /* Terminal-style للمخرجات */
+        .output-card { background: #0d0d0d !important; border: 1px solid #1c1c1c !important; border-radius: 8px; }
+        .output-card .card-title { background: #111; color: #4ade80; padding: 8px 14px; margin: -15px -15px 0 -15px; border-radius: 8px 8px 0 0; border-bottom: 1px solid #222; }
+        .output-card pre { background: #0d0d0d; color: #00ff00; font-family: Consolas, 'Courier New', monospace; font-size: 13px; min-height: 80px; max-height: 320px; overflow-y: auto; padding: 10px 14px; border-radius: 0; margin: 0; }
+        .stdout { color: #00ff00; }
+        .stderr { color: #ff4444; }
+        .run-prompt-sym { color: #444; user-select: none; }
+        .run-meta { font-family: Consolas, 'Courier New', monospace; font-size: 12px; color: #555; padding: 5px 14px 7px; background: #0d0d0d; border-top: 1px solid #1a1a1a; border-radius: 0 0 8px 8px; display: flex; gap: 14px; flex-wrap: wrap; }
+        /* بطاقة الكود المصحَّح */
+        .fixed-code-card { margin-top: 14px; background: #071407; border: 1px solid #166534; border-radius: 12px; padding: 18px; display: none; }
+        .fixed-code-card .card-title { color: #4ade80; border-color: #166534; }
+        .fixed-code-card pre { max-height: 300px; overflow-y: auto; background: #0a1f0a; }
+        .fixed-code-buttons { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .fixed-code-buttons button { width: auto; flex: 0 0 auto; padding: 8px 16px; font-size: 14px; margin-top: 0; }
+        .btn-copy-fix { background: #166534; }
+        .btn-copy-fix:hover { background: #15803d; }
+        .btn-use-fix { background: #1d4ed8; }
+        .btn-use-fix:hover { background: #1e40af; }
+        .fix-tip { color: #86efac; font-size: 13px; margin-top: 10px; padding: 8px 12px; background: #0d2010; border-radius: 6px; border-right: 3px solid #4ade80; }
 
         /* لوحة التحكم والخدمات الاحترافية (AI) */
         .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; display: none; }
@@ -181,6 +198,7 @@
             <div id="outputCard" class="service-card output-card">
                 <div class="card-title text-green">🖥️ المخرجات</div>
                 <pre><code id="runOutput"></code></pre>
+                <div id="runMeta" class="run-meta" style="display:none;"></div>
                 <div id="runStatus" class="hint"></div>
             </div>
 
@@ -215,6 +233,17 @@
             <div id="aiCard" class="ai-card">
                 <div class="card-title">✨ شرح المساعد الذكي</div>
                 <div id="aiContent" class="ai-content"></div>
+            </div>
+
+            <!-- بطاقة الكود المصحَّح (تظهر عند توفر fixed_code من الذكاء الاصطناعي) -->
+            <div id="fixedCodeCard" class="fixed-code-card">
+                <div class="card-title">✅ الكود المصحَّح</div>
+                <pre><code id="fixedCodeOutput" dir="ltr" style="text-align:left; font-family: Consolas,'Courier New',monospace; font-size:13px;"></code></pre>
+                <div class="fixed-code-buttons">
+                    <button class="btn-copy-fix" id="copyFixedCodeBtn">📋 نسخ الكود المصحَّح</button>
+                    <button class="btn-use-fix" id="useFixedCodeBtn">⬅️ استخدم هذا الكود في المحرر</button>
+                </div>
+                <div id="fixTip" class="fix-tip" style="display:none;"></div>
             </div>
         </div>
 
@@ -283,15 +312,15 @@
             html: "html", json: "json",
             csharp: "csharp", kotlin: "kotlin", swift: "swift", typescript: "typescript", bash: "shell"
         };
-        // طريقة تشغيل كل لغة: pyodide/worker/piston/judge0 — اللغات غير المذكورة لا يتوفر لها تشغيل
+        // طريقة تشغيل كل لغة: pyodide/worker/judge0 — اللغات غير المذكورة لا يتوفر لها تشغيل
         const RUNNABLE = {
             python: "pyodide", javascript: "worker",
-            c: "piston", cpp: "piston",
+            c: "judge0", cpp: "judge0",
             java: "judge0", go: "judge0", rust: "judge0", php: "judge0", ruby: "judge0",
             csharp: "judge0", kotlin: "judge0", swift: "judge0", typescript: "judge0", bash: "judge0"
         };
-        // معرّفات لغات Judge0 CE (RapidAPI)
-        const JUDGE0_LANGUAGE_IDS = { java: 62, go: 60, rust: 73, php: 68, ruby: 72, csharp: 51, kotlin: 78, swift: 83, typescript: 74, bash: 46 };
+        // معرّفات لغات Judge0 CE (c=50, cpp=54 تُضاف هنا مع باقي اللغات)
+        const JUDGE0_LANGUAGE_IDS = { c: 50, cpp: 54, java: 62, go: 60, rust: 73, php: 68, ruby: 72, csharp: 51, kotlin: 78, swift: 83, typescript: 74, bash: 46 };
 
         const languageSelect = document.getElementById("languageSelect");
         let editor = null; window.editor = null;
@@ -345,7 +374,7 @@
             return editor ? editor.getValue() : "";
         }
 
-        // ===== التشغيل داخل المتصفح (Web Worker معزول أو Piston، لا شيء يُنفَّذ على خادم Flask) =====
+        // ===== التشغيل داخل المتصفح (Web Worker أو Judge0 المحلي، لا شيء يُنفَّذ على خادم Flask) =====
         const RUN_TIMEOUT_MS = 10000;
         const WORKER_SOURCES = {
             javascript: `
@@ -392,6 +421,14 @@
         const runStatus = document.getElementById("runStatus");
         const workers = {};   // عامل واحد لكل لغة (حتى لا يُعاد تحميل Pyodide في كل تشغيل)
         let activeRun = null;
+        let runStartTime = 0;
+        let serverHasJudge0Key = false;
+
+        // فحص ما إذا كان الخادم يحمل مفتاح Judge0 (docker-compose المحلي)
+        fetch('/judge0-status').then(r => r.json()).then(d => {
+            serverHasJudge0Key = d.server_key;
+            updateRunAvailability();
+        }).catch(() => {});
 
         // يجب تعريف هذه الدالة بعد تعريف runBtn/stopBtn/outputCard أعلاه لأنها تستخدمها
         function updateRunAvailability() {
@@ -402,12 +439,14 @@
             runBtn.style.display = runnable ? "" : "none";
             document.getElementById("runHint").textContent = runnable
                 ? (mode === "judge0"
-                    ? "يتم تشغيل الكود عبر Judge0 API (يُرسل لخادم خارجي من متصفحك)."
+                    ? (serverHasJudge0Key
+                        ? "يتم تشغيل الكود عبر Judge0 المحلي (docker-compose) بدون إنترنت."
+                        : "يتم تشغيل الكود عبر Judge0 API (يُرسل لخادم خارجي من متصفحك).")
                     : "يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.")
                 : "التشغيل غير متاح لهذه اللغة حالياً، استخدم زر «فحص الكود».";
-            // إظهار/إخفاء إشعار مفتاح Judge0
+            // إظهار/إخفاء إشعار مفتاح Judge0 (يُخفى إذا كان الخادم يملك المفتاح)
             const notice = document.getElementById("judge0Notice");
-            if (mode === "judge0") {
+            if (mode === "judge0" && !serverHasJudge0Key) {
                 notice.style.display = "block";
                 updateJudge0KeyUI();
             } else {
@@ -480,16 +519,28 @@
 
         function appendOutput(text, stream) {
             const span = document.createElement("span");
-            if (stream === "stderr") span.className = "stderr";
+            span.className = stream === "stderr" ? "stderr" : "stdout";
             span.textContent = text;
             runOutput.appendChild(span);
+            runOutput.scrollTop = runOutput.scrollHeight;
         }
 
-        function finishRun(message) {
+        function finishRun(message, exitCode, elapsedMs) {
             if (!activeRun) return;
             clearTimeout(activeRun.timer);
             if (activeRun.worker) activeRun.worker.onmessage = null;
             activeRun = null;
+            // عرض كود الخروج والوقت في شريط Terminal
+            const metaEl = document.getElementById("runMeta");
+            if (metaEl) {
+                const elapsed = elapsedMs !== undefined ? elapsedMs : Math.round(performance.now() - runStartTime);
+                const exitStr = exitCode !== undefined
+                    ? `<span style="color:${exitCode === 0 ? '#4ade80' : '#ff4444'}">exit code: ${exitCode}</span>`
+                    : '';
+                const timeStr = `<span style="color:#555;">⏱ انتهى في ${(elapsed / 1000).toFixed(2)} ثانية</span>`;
+                metaEl.innerHTML = [exitStr, timeStr].filter(Boolean).join("&nbsp;&nbsp;|&nbsp;&nbsp;");
+                metaEl.style.display = "flex";
+            }
             runStatus.textContent = message;
             runBtn.disabled = false;
             runBtn.innerText = "▶ تشغيل";
@@ -522,12 +573,11 @@
             if (activeRun !== run) return;   // أُوقف أثناء التحميل
 
             runBtn.innerText = "جاري التشغيل...";
-            const started = performance.now();
             worker.onmessage = (e) => {
                 if (e.data.type === "out") appendOutput(e.data.text, e.data.stream);
                 if (e.data.type === "done") {
                     if (!runOutput.textContent) appendOutput("(لا توجد مخرجات)\n");
-                    finishRun(`انتهى التشغيل خلال ${Math.round(performance.now() - started)} ms`);
+                    finishRun("انتهى التشغيل", 0);
                 }
             };
             run.timer = setTimeout(() => {
@@ -537,75 +587,7 @@
             worker.postMessage({ code });
         }
 
-        // ---- تشغيل C/C++ عبر خدمة Piston العامة (تُستدعى من متصفح الطالب مباشرة) ----
-        const PISTON_URL = "https://emkc.org/api/v2/piston/execute";
-        const PISTON_RUNTIMES_URL = "https://emkc.org/api/v2/piston/runtimes";
-        let pistonVersions = null; // { c: "10.2.0", cpp: "10.2.0" }
-
-        async function getPistonVersion(lang, signal) {
-            if (!pistonVersions) {
-                try {
-                    const res = await fetch(PISTON_RUNTIMES_URL, { signal });
-                    const runtimes = await res.json();
-                    pistonVersions = {};
-                    for (const rt of runtimes) {
-                        const names = [rt.language, ...(rt.aliases || [])];
-                        if (names.includes("c")) pistonVersions.c = rt.version;
-                        if (names.includes("cpp") || names.includes("c++")) pistonVersions.cpp = rt.version;
-                    }
-                } catch (err) {
-                    pistonVersions = {}; // سنستخدم "*" كحل بديل أدناه
-                }
-            }
-            return pistonVersions[lang] || "*";
-        }
-
-        async function runViaPiston(lang, code) {
-            const controller = new AbortController();
-            activeRun = { lang: null, worker: null, timer: null, abortController: controller };
-            const run = activeRun;
-
-            runBtn.innerText = "جاري الاتصال بخدمة التشغيل...";
-            run.timer = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
-
-            try {
-                const version = await getPistonVersion(lang, controller.signal);
-                if (activeRun !== run) return;
-                const response = await fetch(PISTON_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    signal: controller.signal,
-                    body: JSON.stringify({
-                        language: lang,
-                        version: version,
-                        files: [{ content: code }]
-                    })
-                });
-                if (activeRun !== run) return;
-                if (!response.ok) throw new Error("رمز استجابة غير متوقع: " + response.status);
-                const data = await response.json();
-
-                if (data.compile && data.compile.stderr) appendOutput(data.compile.stderr, "stderr");
-                if (data.run) {
-                    if (data.run.stdout) appendOutput(data.run.stdout, "stdout");
-                    if (data.run.stderr) appendOutput(data.run.stderr, "stderr");
-                    if (!data.run.stdout && !data.run.stderr && !(data.compile && data.compile.stderr)) {
-                        appendOutput("(لا توجد مخرجات)\n");
-                    }
-                }
-                finishRun(data.run ? `انتهى التشغيل (كود الخروج: ${data.run.code})` : "انتهى التشغيل.");
-            } catch (err) {
-                if (activeRun !== run) return; // تم الإيقاف يدوياً أو بسبب المهلة، تمت معالجته في stopRun بالفعل
-                if (err.name === "AbortError") {
-                    appendOutput(`\n⏱️ تم إيقاف التشغيل: تجاوز الحد الزمني (${RUN_TIMEOUT_MS / 1000} ثوانٍ) أو تعذّر الاتصال بخدمة Piston.\n`, "stderr");
-                } else {
-                    appendOutput("\nتعذّر الاتصال بخدمة التشغيل الخارجية (Piston): " + err.message + "\n", "stderr");
-                }
-                finishRun("فشل التشغيل.");
-            }
-        }
-
-        // ---- تشغيل Java/Go/Rust/PHP/Ruby/C#/Kotlin/Swift/TypeScript/Bash عبر بروكسي /run-judge0 ----
+        // ---- تشغيل C/C++/Java/Go/Rust/PHP/Ruby/C#/Kotlin/Swift/TypeScript/Bash عبر بروكسي /run-judge0 ----
         async function runViaJudge0(lang, code) {
             const apiKey = localStorage.getItem("judge0_api_key");
 
@@ -655,7 +637,9 @@
                 if (data.stderr) appendOutput(data.stderr, "stderr");
                 if (!data.stdout && !data.stderr && !data.compile_output) appendOutput("(لا توجد مخرجات)\n");
                 const statusDesc = data.status ? data.status.description : "انتهى التشغيل";
-                finishRun(statusDesc);
+                const exitCode = data.status ? (data.status.id === 3 ? 0 : 1) : 0;
+                const execMs = data.time ? Math.round(parseFloat(data.time) * 1000) : undefined;
+                finishRun(statusDesc, exitCode, execMs);
             } catch (err) {
                 if (activeRun !== run) return;
                 if (err.name === "AbortError") {
@@ -675,14 +659,20 @@
             if (!mode) return;
 
             runOutput.textContent = "";
+            const metaEl = document.getElementById("runMeta");
+            if (metaEl) metaEl.style.display = "none";
             outputCard.style.display = "block";
             runBtn.disabled = true;
             stopBtn.style.display = "block";
             runStatus.textContent = "";
+            runStartTime = performance.now();
+            // رمز الـ terminal قبل المخرجات
+            const ps = document.createElement("span");
+            ps.className = "run-prompt-sym";
+            ps.textContent = ">>> ";
+            runOutput.appendChild(ps);
 
-            if (mode === "piston") {
-                await runViaPiston(lang, code);
-            } else if (mode === "judge0") {
+            if (mode === "judge0") {
                 await runViaJudge0(lang, code);
             } else {
                 await runInWorker(lang, code);
@@ -749,11 +739,32 @@
             // بطاقة شرح المساعد الذكي (المرحلة 5)
             const aiCard = document.getElementById("aiCard");
             const aiContent = document.getElementById("aiContent");
+            const fixedCodeCard = document.getElementById("fixedCodeCard");
+            const fixTipEl = document.getElementById("fixTip");
             if (data.ai_explanation) {
                 aiCard.style.display = "block";
-                aiContent.textContent = data.ai_explanation;
+                const ai = data.ai_explanation;
+                if (ai && typeof ai === "object" && ai.explanation) {
+                    aiContent.textContent = ai.explanation;
+                    if (ai.fixed_code) {
+                        document.getElementById("fixedCodeOutput").textContent = ai.fixed_code;
+                        fixedCodeCard.style.display = "block";
+                        if (ai.tip) {
+                            fixTipEl.textContent = "💡 " + ai.tip;
+                            fixTipEl.style.display = "block";
+                        } else {
+                            fixTipEl.style.display = "none";
+                        }
+                    } else {
+                        fixedCodeCard.style.display = "none";
+                    }
+                } else {
+                    aiContent.textContent = typeof ai === "string" ? ai : JSON.stringify(ai);
+                    fixedCodeCard.style.display = "none";
+                }
             } else {
                 aiCard.style.display = "none";
+                fixedCodeCard.style.display = "none";
             }
         }
 
@@ -791,6 +802,20 @@
                 analyzeBtn.disabled = false;
                 analyzeBtn.innerText = "🩺 فحص الكود";
             }
+        });
+
+        // ===== أزرار الكود المصحَّح =====
+        document.getElementById("copyFixedCodeBtn").addEventListener("click", () => {
+            const code = document.getElementById("fixedCodeOutput").textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.getElementById("copyFixedCodeBtn");
+                btn.textContent = "✅ تم النسخ!";
+                setTimeout(() => { btn.textContent = "📋 نسخ الكود المصحَّح"; }, 2000);
+            }).catch(() => alert("تعذّر النسخ — حاول يدوياً"));
+        });
+        document.getElementById("useFixedCodeBtn").addEventListener("click", () => {
+            const code = document.getElementById("fixedCodeOutput").textContent;
+            if (editor) { editor.setValue(code); editor.focus(); }
         });
 
         // ===== التحليل الشامل عبر الذكاء الاصطناعي (POST /api/check-code) =====

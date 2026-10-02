@@ -302,49 +302,97 @@ def compute_technical_debt(errors, complexity_value):
     return f"{minutes} دقيقة"
 
 
-def get_ai_explanation(language, errors, score, complexity):
-    """شرح الأخطاء بالذكاء الاصطناعي: يجرب Claude أولاً ثم Gemini كاحتياط، ويعيد None إن لم يتوفر أي منهما."""
+def _call_openai_compat(endpoint, api_key, model, messages, max_tokens=700):
+    """استدعاء API متوافق مع OpenAI عبر urllib (Groq, Cerebras, إلخ)."""
+    payload = json.dumps({
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0.3
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        endpoint,
+        data=payload,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data["choices"][0]["message"]["content"].strip()
+
+
+def _parse_ai_json(text):
+    """استخرج JSON من رد الذكاء الاصطناعي؛ إن فشل التحليل أعد النص في حقل explanation."""
+    try:
+        m = re.search(r'\{[\s\S]*\}', text)
+        if m:
+            return json.loads(m.group())
+    except Exception:
+        pass
+    return {"explanation": text, "fixed_code": None, "tip": None}
+
+
+def get_ai_explanation(language, errors, score, complexity, code=""):
+    """شرح الأخطاء بالذكاء الاصطناعي: Groq ← Cerebras ← Claude ← Gemini."""
     n_err = sum(1 for e in errors if e["severity"] == "error")
     n_warn = sum(1 for e in errors if e["severity"] == "warning")
-    errors_sample = "; ".join(e["message"] for e in errors[:5]) if errors else "لا توجد أخطاء"
+    errors_text = "\n".join(f"- سطر {e['line']}: {e['message']}" for e in errors[:5]) if errors else "لا توجد أخطاء"
 
     prompt = (
-        f"أنت مساعد تعليمي لطلاب البرمجة. فيما يلي نتائج فحص كود بلغة {language}:\n"
-        f"الأخطاء: {n_err} خطأ و{n_warn} تحذير — {errors_sample}\n"
-        f"درجة الكود: {score}/10\n"
-        f"التعقيد: {complexity['value']} (تصنيف {complexity['score']} - {complexity['label']})\n\n"
-        "اشرح بالعربية بأسلوب مبسط ومشجع:\n"
-        "1. ما المشكلة الرئيسية في الكود (جملة واحدة)\n"
-        "2. كيف يصلحها الطالب (خطوات بسيطة)\n"
-        "3. نصيحة واحدة لتحسين أسلوب الكتابة\n"
-        "كن موجزاً (لا تتجاوز 150 كلمة)"
+        f"أنت مساعد تعليمي لطلاب البرمجة. فيما يلي كود بلغة {language} ونتائج فحصه:\n\n"
+        f"الكود:\n```\n{code[:800]}\n```\n\n"
+        f"الأخطاء المكتشفة ({n_err} خطأ، {n_warn} تحذير):\n{errors_text}\n\n"
+        "أعد ردك بصيغة JSON فقط بهذا الشكل (بدون أي نص خارج JSON):\n"
+        '{"explanation": "شرح مبسط للمشكلة في جملتين", '
+        '"fixed_code": "الكود كاملاً بعد تصحيح كل الأخطاء", '
+        '"tip": "نصيحة واحدة لتحسين الأسلوب"}'
     )
+    messages = [{"role": "user", "content": prompt}]
 
-    # محاولة 1: Claude API (claude-haiku-20240307 للسرعة والتوفير)
+    # 1. Groq (الأسرع والأوفر — llama-3.3-70b-versatile)
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if groq_key:
+        try:
+            text = _call_openai_compat(
+                "https://api.groq.com/openai/v1/chat/completions",
+                groq_key, "llama-3.3-70b-versatile", messages
+            )
+            return _parse_ai_json(text)
+        except Exception:
+            pass
+
+    # 2. Cerebras (احتياطي — llama3.1-8b)
+    cerebras_key = os.environ.get("CEREBRAS_API_KEY")
+    if cerebras_key:
+        try:
+            text = _call_openai_compat(
+                "https://api.cerebras.ai/v1/chat/completions",
+                cerebras_key, "llama3.1-8b", messages
+            )
+            return _parse_ai_json(text)
+        except Exception:
+            pass
+
+    # 3. Claude API (احتياطي — claude-haiku للسرعة)
     claude_key = os.environ.get("CLAUDE_API_KEY")
     if claude_key:
         try:
             import anthropic
             client = anthropic.Anthropic(api_key=claude_key)
             msg = client.messages.create(
-                model="claude-haiku-20240307",
-                max_tokens=400,
-                messages=[{"role": "user", "content": prompt}],
+                model="claude-haiku-20240307", max_tokens=700, messages=messages,
             )
-            return msg.content[0].text.strip()
+            return _parse_ai_json(msg.content[0].text.strip())
         except Exception:
             pass
 
-    # محاولة 2: Gemini API (gemini-1.5-flash الأسرع والأوفر)
+    # 4. Gemini (احتياطي أخير — gemini-1.5-flash)
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if gemini_key:
         try:
             model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(
-                prompt,
-                request_options={"timeout": 15}
-            )
-            return response.text.strip()
+            response = model.generate_content(prompt, request_options={"timeout": 15})
+            return _parse_ai_json(response.text.strip())
         except Exception:
             pass
 
@@ -389,7 +437,7 @@ def analyze():
             "value": complexity_value,
             "label": _complexity_label(complexity_rank),
         }
-        ai_explanation = get_ai_explanation(language, errors, score, complexity_obj)
+        ai_explanation = get_ai_explanation(language, errors, score, complexity_obj, code=code)
 
         return jsonify({
             "errors": errors,
@@ -500,6 +548,12 @@ def check_code():
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+
+@app.route('/judge0-status')
+def judge0_status():
+    """هل يوجد مفتاح Judge0 على الخادم (docker-compose المحلي)؟"""
+    return jsonify({"server_key": bool(JUDGE0_API_KEY)})
+
 
 @app.route('/run-judge0', methods=['POST'])
 def run_judge0():
