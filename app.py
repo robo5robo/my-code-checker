@@ -353,13 +353,13 @@ def get_ai_explanation(language, errors, score, complexity, code=""):
     )
     messages = [{"role": "user", "content": prompt}]
 
-    # 1. Groq (الأسرع والأوفر — llama-3.3-70b-versatile)
+    # 1. Groq (الأسرع والأوفر — openai/gpt-oss-120b)
     groq_key = os.environ.get("GROQ_API_KEY")
     if groq_key:
         try:
             text = _call_openai_compat(
                 "https://api.groq.com/openai/v1/chat/completions",
-                groq_key, "llama-3.3-70b-versatile", messages
+                groq_key, "openai/gpt-oss-120b", messages
             )
             return _parse_ai_json(text)
         except Exception:
