@@ -16,15 +16,17 @@ git clone https://github.com/robo5robo/my-code-checker.git C:\proj_ise\my-code-c
 cd C:\proj_ise\my-code-checker
 ```
 
-### 2. أضف مفتاح Gemini
+### 2. أضف مفاتيح الذكاء الاصطناعي
 
-افتح ملف `.env.local` وضع مفتاحك من [Google AI Studio](https://aistudio.google.com/):
+افتح ملف `.env.local` وضع مفاتيحك (مفتاح Groq كافٍ للبدء):
 
 ```
-GEMINI_API_KEY=AIza...مفتاحك_هنا
+GROQ_API_KEY=gsk_...مفتاحك_من_console.groq.com
+CEREBRAS_API_KEY=          # اختياري
+GEMINI_API_KEY=            # اختياري
 ```
 
-> إذا تركته كما هو تعمل المنصة بدون التحليل بالذكاء الاصطناعي فقط.
+> إذا تركت الكل فارغاً تعمل المنصة بدون التحليل بالذكاء الاصطناعي فقط.
 
 ### 3. شغّل المنصة
 
@@ -38,11 +40,14 @@ start.bat
 
 ## الاستخدام اليومي
 
-| الأمر | ماذا يفعل |
-|---|---|
-| `start.bat` | تشغيل كل الخدمات |
-| `stop.bat` | إيقاف كل الخدمات |
-| `restart.bat` | إعادة التشغيل (بعد تعديل كود) |
+| الأمر | متى تستخدمه | يبني الصورة؟ |
+|---|---|---|
+| `start.bat` | التشغيل الأول أو التشغيل العادي | لا (يبني تلقائياً إن لم تكن الصورة موجودة) |
+| `restart.bat` | إعادة تشغيل سريعة للحاويات بدون تغييرات | لا |
+| `update.bat` | بعد `git pull` لتطبيق تحديثات الكود | **نعم** (يبني ما تغيّر فقط) |
+| `stop.bat` | إيقاف كل الخدمات | — |
+
+> **القاعدة:** بعد أي `git pull` → شغّل `update.bat`. في غير ذلك → `start.bat` أو `restart.bat`.
 
 ---
 
@@ -69,7 +74,7 @@ http://localhost:2358        ← Judge0 API (داخلي)
 |---|---|
 | Python | لا (يعمل في المتصفح عبر Pyodide) |
 | JavaScript | لا (Web Worker معزول) |
-| C / C++ | لا (Piston) |
+| C / C++ | نعم (Judge0 محلي — تلقائي) |
 | HTML / JSON | لا (فحص فقط) |
 | Java, Go, Rust, PHP, Ruby | نعم (Judge0 محلي — تلقائي) |
 | C#, Kotlin, Swift, TypeScript, Bash | نعم (Judge0 محلي — تلقائي) |
@@ -90,10 +95,9 @@ docker-compose logs my-code-checker
 docker-compose logs judge0-server
 ```
 
-**إعادة بناء الصورة بعد تعديل الكود:**
+**تطبيق تحديثات الكود بعد git pull:**
 ```bat
-docker-compose build my-code-checker
-restart.bat
+update.bat
 ```
 
 **حذف كل البيانات والبدء من جديد:**
