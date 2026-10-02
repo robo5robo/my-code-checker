@@ -325,15 +325,65 @@ def _call_openai_compat(endpoint, api_key, model, messages, max_tokens=700):
     return data["choices"][0]["message"]["content"].strip()
 
 
-def _parse_ai_json(text):
-    """استخرج JSON من رد الذكاء الاصطناعي؛ إن فشل التحليل أعد النص في حقل explanation."""
+def _parse_ai_json(text, defaults=None):
+    """استخرج JSON من رد الذكاء الاصطناعي؛ إن فشل التحليل أعد النص داخل القيم الافتراضية."""
     try:
         m = re.search(r'\{[\s\S]*\}', text)
         if m:
             return json.loads(m.group())
     except Exception:
         pass
-    return {"explanation": text, "fixed_code": None, "tip": None}
+    base = defaults.copy() if defaults else {"fixed_code": None}
+    base["explanation"] = text
+    return base
+
+
+def _call_ai_chain(messages, max_tokens=700):
+    """يجرّب المزوّدين بالترتيب ويُعيد أول رد نصي ناجح: Groq ← Cerebras ← Claude ← Gemini. None إن فشل الجميع."""
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if groq_key:
+        try:
+            return _call_openai_compat(
+                "https://api.groq.com/openai/v1/chat/completions",
+                groq_key, "openai/gpt-oss-120b", messages, max_tokens
+            )
+        except Exception:
+            pass
+
+    cerebras_key = os.environ.get("CEREBRAS_API_KEY")
+    if cerebras_key:
+        try:
+            return _call_openai_compat(
+                "https://api.cerebras.ai/v1/chat/completions",
+                cerebras_key, "llama3.1-8b", messages, max_tokens
+            )
+        except Exception:
+            pass
+
+    claude_key = os.environ.get("CLAUDE_API_KEY")
+    if claude_key:
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=claude_key)
+            msg = client.messages.create(
+                model="claude-haiku-20240307", max_tokens=max_tokens, messages=messages,
+            )
+            return msg.content[0].text.strip()
+        except Exception:
+            pass
+
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(
+                messages[0]["content"], request_options={"timeout": 15}
+            )
+            return response.text.strip()
+        except Exception:
+            pass
+
+    return None
 
 
 def get_ai_explanation(language, errors, score, complexity, code=""):
@@ -352,54 +402,9 @@ def get_ai_explanation(language, errors, score, complexity, code=""):
         '"tip": "نصيحة واحدة لتحسين الأسلوب"}'
     )
     messages = [{"role": "user", "content": prompt}]
-
-    # 1. Groq (الأسرع والأوفر — openai/gpt-oss-120b)
-    groq_key = os.environ.get("GROQ_API_KEY")
-    if groq_key:
-        try:
-            text = _call_openai_compat(
-                "https://api.groq.com/openai/v1/chat/completions",
-                groq_key, "openai/gpt-oss-120b", messages
-            )
-            return _parse_ai_json(text)
-        except Exception:
-            pass
-
-    # 2. Cerebras (احتياطي — llama3.1-8b)
-    cerebras_key = os.environ.get("CEREBRAS_API_KEY")
-    if cerebras_key:
-        try:
-            text = _call_openai_compat(
-                "https://api.cerebras.ai/v1/chat/completions",
-                cerebras_key, "llama3.1-8b", messages
-            )
-            return _parse_ai_json(text)
-        except Exception:
-            pass
-
-    # 3. Claude API (احتياطي — claude-haiku للسرعة)
-    claude_key = os.environ.get("CLAUDE_API_KEY")
-    if claude_key:
-        try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=claude_key)
-            msg = client.messages.create(
-                model="claude-haiku-20240307", max_tokens=700, messages=messages,
-            )
-            return _parse_ai_json(msg.content[0].text.strip())
-        except Exception:
-            pass
-
-    # 4. Gemini (احتياطي أخير — gemini-1.5-flash)
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-    if gemini_key:
-        try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(prompt, request_options={"timeout": 15})
-            return _parse_ai_json(response.text.strip())
-        except Exception:
-            pass
-
+    text = _call_ai_chain(messages)
+    if text:
+        return _parse_ai_json(text, defaults={"fixed_code": None, "tip": None})
     return None
 
 
@@ -499,16 +504,6 @@ def check_code():
             raw_report = "لا توجد أداة فحص ساكن لـ JavaScript حالياً؛ التحليل يعتمد على الذكاء الاصطناعي فقط."
 
         # 2. استدعاء المعلم الذكي (AI) لتحليل الأخطاء والخدمات المتقدمة
-        gemini_key = os.environ.get("GEMINI_API_KEY")
-        if not gemini_key:
-            return jsonify({
-                "raw_result": raw_report,
-                "error": "مفتاح الذكاء الاصطناعي غير مكوَّن على الخادم. يُعرض فحص الكود الساكن فقط.",
-                "fallback": True
-            })
-
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
         prompt = f"""
         أنت محرك فحص أكواد احترافي ومعلم برمجية لطلاب الجامعات.
         قم بتحليل الكود التالي المكتوب بلغة ({language}) بناءً على تقرير الخطأ الجاف هذا: "{raw_report}".
@@ -529,10 +524,22 @@ def check_code():
         \"\"\"
         """
         
-        ai_response = model.generate_content(prompt, request_options={"timeout": 15})
-        # تحويل رد الذكاء الاصطناعي النصي إلى كائن JSON لإرساله للمتصفح
-        processed_data = json.loads(ai_response.text)
-        
+        text = _call_ai_chain([{"role": "user", "content": prompt}])
+        if not text:
+            return jsonify({
+                "raw_result": raw_report,
+                "error": "مفتاح الذكاء الاصطناعي غير مكوَّن على الخادم. يُعرض فحص الكود الساكن فقط.",
+                "fallback": True
+            })
+
+        processed_data = _parse_ai_json(text, defaults={
+            "error_title": "تحليل حالة الكود",
+            "solution_steps": "",
+            "security_check": "",
+            "technical_debt": "غير متاح",
+            "fixed_code": None,
+        })
+
         return jsonify({
             "raw_result": raw_report,
             "ai_analysis": processed_data

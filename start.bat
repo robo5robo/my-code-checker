@@ -1,17 +1,17 @@
 @echo off
 echo.
 echo ====================================
-echo    منصة فحص الأكواد - ISE
+echo    ISE Code Checker Platform
 echo ====================================
 echo.
-echo جاري تشغيل الخدمات...
+echo Starting services...
 cd /d C:\proj_ise\my-code-checker
 docker-compose --env-file .env.local up -d
 echo.
-echo انتظر 40 ثانية حتى تجهز Judge0...
+echo Waiting 40 seconds for Judge0 to be ready...
 timeout /t 40 /nobreak
 echo.
 echo ====================================
-echo  الموقع جاهز: http://localhost:5000
+echo  Site ready: http://localhost:5000
 echo ====================================
 start http://localhost:5000

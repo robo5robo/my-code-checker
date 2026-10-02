@@ -1,5 +1,5 @@
 @echo off
-echo جاري تحديث المنصة بعد git pull...
+echo Updating the platform after git pull...
 cd /d C:\proj_ise\my-code-checker
 docker-compose --env-file .env.local up -d --build
-echo تم التحديث والتشغيل.
+echo Update complete.
