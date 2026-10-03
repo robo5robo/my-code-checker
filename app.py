@@ -105,19 +105,20 @@ HARDWARE_IMPORT_NAMES = {"cv2", "picamera", "RPi.GPIO", "RPi", "pyaudio", "seria
 
 
 def detect_hardware_imports(code):
+    """يُعيد اسم أول مكتبة جهاز حقيقي مكتشفة في الاستيرادات، أو None إن لم توجد."""
     try:
         tree = ast.parse(code)
     except SyntaxError:
-        return False
+        return None
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name in HARDWARE_IMPORT_NAMES or alias.name.split(".")[0] in HARDWARE_IMPORT_NAMES:
-                    return True
+                    return alias.name
         elif isinstance(node, ast.ImportFrom):
             if node.module and (node.module in HARDWARE_IMPORT_NAMES or node.module.split(".")[0] in HARDWARE_IMPORT_NAMES):
-                return True
-    return False
+                return node.module
+    return None
 
 
 NETWORK_CALL_NAMES = {"requests.get", "requests.post", "requests.put", "requests.delete", "requests.request", "urlopen"}
@@ -697,12 +698,13 @@ def analyze():
     if language not in ANALYZE_EXTENSIONS:
         return jsonify({"error": "هذه اللغة غير مدعومة حالياً للفحص"}), 400
 
-    if language == "python" and detect_hardware_imports(code):
-        return jsonify({
-            "blocked": True,
-            "message": "⚠️ هذا الكود يحتاج وصولاً لجهاز حقيقي (كاميرا/حساس) غير متاح في بيئة التشغيل السحابية. "
-                       "جرّب هذا الكود على جهازك الشخصي مباشرة، أو استخدم متصفحك للوصول لجهازك إن كان يدعم ذلك.",
-        })
+    # ملاحظة (لا حظر): الفحص الساكن مفيد حتى لو احتاج الكود جهازاً حقيقياً لاحقاً —
+    # نُبلغ الطالب فقط، ولا نُلغي نتائج Ruff/الأمان/التعقيد
+    hardware_lib = detect_hardware_imports(code) if language == "python" else None
+    hardware_notice = (
+        f"⚠️ ملاحظة: هذا الكود يستخدم مكتبة ({hardware_lib}) تحتاج جهازاً حقيقياً (كاميرا/حساس) لتعمل فعلياً. "
+        "الفحص النصي للكود يعمل بشكل طبيعي، لكن التشغيل الفعلي يحتاج جهازك الشخصي."
+    ) if hardware_lib else None
 
     analyze_dir = os.path.join(TEMP_DIR, f"analyze_{uuid.uuid4().hex}")
     os.makedirs(analyze_dir, exist_ok=True)
@@ -760,6 +762,7 @@ def analyze():
             "lines": count_lines(code, language),
             "security_issues": security_issues,
             "performance_notes": performance_notes,
+            "hardware_notice": hardware_notice,
             "ai_explanation": ai_explanation,
         })
     finally:
@@ -798,13 +801,13 @@ def extract_structure_python(code):
             self.generic_visit(node)
 
         def visit_ClassDef(self, node):
-            nodes.append({"id": node.name, "type": "class", "line": node.lineno})
+            nodes.append({"id": node.name, "type": "class", "line": node.lineno, "level": len(scope_stack)})
             scope_stack.append(node.name)
             self.generic_visit(node)
             scope_stack.pop()
 
         def _func(self, node):
-            nodes.append({"id": node.name, "type": "function", "line": node.lineno})
+            nodes.append({"id": node.name, "type": "function", "line": node.lineno, "level": len(scope_stack)})
             scope_stack.append(node.name)
             self.generic_visit(node)
             scope_stack.pop()
@@ -868,7 +871,7 @@ def extract_structure_js(code):
         if name in seen:
             continue
         seen.add(name)
-        nodes.append({"id": name, "type": typ, "line": code.count('\n', 0, start) + 1, "_start": start})
+        nodes.append({"id": name, "type": typ, "line": code.count('\n', 0, start) + 1, "level": 0, "_start": start})
 
     known = {n["id"] for n in nodes}
     edges, seen_edges = [], set()
@@ -912,7 +915,7 @@ def extract_structure_generic(code, language):
         if name in seen or name in GENERIC_SKIP_NAMES:
             continue
         seen.add(name)
-        nodes.append({"id": name, "type": "function", "line": code.count('\n', 0, m.start()) + 1})
+        nodes.append({"id": name, "type": "function", "line": code.count('\n', 0, m.start()) + 1, "level": 0})
 
     nodes.sort(key=lambda n: n["line"])
     lines = code.split('\n')

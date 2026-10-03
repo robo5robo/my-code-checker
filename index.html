@@ -416,6 +416,12 @@
             <!-- نتائج فحص الكود (المرحلتان 3 و4 و5) — كل الأقسام الفرعية بطاقات خفيفة الحدود
                  داخل إطار خارجي برتقالي واحد (results-card)، بنفس قالب الخيار 3 -->
             <div id="resultsCard" class="service-card results-card">
+                <!-- تنبيه اختياري: الكود يستخدم مكتبة تحتاج جهازاً حقيقياً — يظهر فقط عند الحاجة، لا يُلغي باقي الفحص -->
+                <div id="hardwareNoticeSection" class="sub-section" style="display:none; border-right-color: color-mix(in srgb, var(--warn-text) 55%, transparent);">
+                    <div class="card-title" style="color: var(--warn-text);">⚠️ ملاحظة جهاز حقيقي</div>
+                    <div id="hardwareNoticeText"></div>
+                </div>
+
                 <!-- 1. ملخص سريع -->
                 <div class="sub-section">
                     <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg> ملخص الفحص الذكي</div>
@@ -1059,6 +1065,15 @@
         function renderAnalysis(data) {
             resultsCard.style.display = "block";
 
+            // ملاحظة جهاز حقيقي (اختيارية) — لا تُلغي باقي الفحص
+            const hwSection = document.getElementById("hardwareNoticeSection");
+            if (data.hardware_notice) {
+                document.getElementById("hardwareNoticeText").textContent = data.hardware_notice;
+                hwSection.style.display = "block";
+            } else {
+                hwSection.style.display = "none";
+            }
+
             // 1. ملخص سريع
             analyzeSummary.textContent = data.summary || "";
             const grade = document.getElementById("scoreGrade");
@@ -1298,31 +1313,87 @@
                 });
             }
             const typeColor = { function: colors.function, class: colors.class, import: colors.import };
-            const nodes = structure.nodes.map((n) => ({
-                name: n.id,
-                line: n.line,
-                symbolSize: n.type === "class" ? 46 : (n.type === "import" ? 22 : 36),
-                itemStyle: { color: typeColor[n.type] || colors.function },
-                label: { color: colors.text },
-            }));
-            const edges = structure.edges.map((e) => ({ source: e.source, target: e.target }));
+
+            // تجميع هرمي: صف الملف (اصطناعي) -> صف الدوال الرئيسية -> صف الدوال الفرعية -> صف الاستيرادات (منفصل بصرياً)
+            const fileLabel = (document.getElementById("editorTitlebar") || {}).textContent || "الملف";
+            const topLevelNodes = structure.nodes.filter((n) => n.type !== "import" && (n.level || 0) === 0);
+            const nestedNodes = structure.nodes.filter((n) => n.type !== "import" && (n.level || 0) > 0);
+            const importNodes = structure.nodes.filter((n) => n.type === "import");
+
+            const rowY = { file: 60, top: 180, nested: 300, imports: 430 };
+            const width = Math.max(container.clientWidth || 800, 400);
+            const spread = (list, y) => {
+                const n = list.length;
+                return list.map((node, i) => ({
+                    id: node.id,
+                    name: node.id,
+                    line: node.line,
+                    x: n === 1 ? width / 2 : (width * (i + 1)) / (n + 1),
+                    y,
+                }));
+            };
+
+            const fileNode = { id: "__file__", name: fileLabel, line: null, x: width / 2, y: rowY.file };
+            const positioned = [fileNode]
+                .concat(spread(topLevelNodes, rowY.top))
+                .concat(spread(nestedNodes, rowY.nested))
+                .concat(spread(importNodes, rowY.imports));
+
+            const nodeById = {};
+            const nodes = positioned.map((p) => {
+                const original = structure.nodes.find((n) => n.id === p.id) || {};
+                const isFile = p.id === "__file__";
+                const node = {
+                    id: p.id,
+                    name: p.name,
+                    line: p.line,
+                    x: p.x,
+                    y: p.y,
+                    symbolSize: isFile ? 54 : (original.type === "class" ? 44 : (original.type === "import" ? 20 : 34)),
+                    itemStyle: { color: isFile ? colors.text : (typeColor[original.type] || colors.function) },
+                    label: { show: true, position: "bottom", fontSize: isFile ? 13 : 11, color: colors.text, fontWeight: isFile ? "600" : "normal" },
+                };
+                nodeById[p.id] = node;
+                return node;
+            });
+
+            const realEdges = structure.edges
+                .filter((e) => nodeById[e.source] && nodeById[e.target])
+                .map((e) => ({ source: e.source, target: e.target }));
+            const fileEdges = topLevelNodes.map((n) => ({ source: "__file__", target: n.id }));
+            const edges = fileEdges.concat(realEdges);
+
+            // خلفية خفيفة مميّزة لصف الاستيرادات، فقط إن وُجدت استيرادات
+            const graphics = importNodes.length ? [{
+                type: "rect",
+                shape: { x: 0, y: rowY.imports - 36, width, height: 72 },
+                style: { fill: colors.edge, opacity: 0.06 },
+                silent: true,
+                z: -1,
+            }] : [];
+
             structureChart.setOption({
                 backgroundColor: "transparent",
                 tooltip: {},
+                graphic: graphics,
                 series: [{
                     type: "graph",
-                    layout: "force",
+                    layout: "none",
+                    coordinateSystem: undefined,
                     roam: true,
                     draggable: true,
-                    label: { show: true, position: "right", fontSize: 12 },
+                    label: { show: true },
                     edgeSymbol: ["none", "arrow"],
                     edgeSymbolSize: 8,
-                    force: { repulsion: 180, edgeLength: 90 },
-                    lineStyle: { color: colors.edge, width: 1.5, curveness: 0.1 },
+                    lineStyle: { color: colors.edge, width: 1.5, curveness: 0.05 },
                     data: nodes,
                     links: edges,
+                    zoom: 0.9,
+                    center: [width / 2, (rowY.file + rowY.imports) / 2],
                 }],
             }, true);
+
+            structureChart.resize();
         }
 
         window.addEventListener("resize", () => { if (structureChart) structureChart.resize(); });
