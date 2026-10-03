@@ -509,7 +509,7 @@ def compute_summary(errors):
     n_err = sum(1 for e in errors if e["severity"] == "error")
     n_warn = sum(1 for e in errors if e["severity"] == "warning")
     if not n_err and not n_warn:
-        return "لم يُعثر على أي أخطاء أو تحذيرات. الكود سليم ✅"
+        return ""
     parts = []
     if n_err: parts.append(f"{n_err} خطأ")
     if n_warn: parts.append(f"{n_warn} تحذير")
