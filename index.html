@@ -24,12 +24,21 @@
             --brand: #2c5f8a;
             --brand-strong: #1f4a6e;
             --accent-warm: #c2660f;
-            --run: #1f8a4c;
-            --run-strong: #176b3a;
-            --scan: #c2660f;
-            --scan-strong: #9c5009;
-            --insight: #0f8f86;
-            --insight-strong: #0b6f68;
+            /* ألوان حيوية عميقة مع توهج خفيف جداً لكل خيار — أهدأ في اللوحة الفاتحة */
+            --run: #16a34a;
+            --run-strong: #15803d;
+            --run-glow: rgba(22, 163, 74, 0.16);
+            --run-glow-strong: rgba(22, 163, 74, 0.28);
+            --scan: #ea580c;
+            --scan-strong: #c2410c;
+            --scan-glow: rgba(234, 88, 12, 0.16);
+            --scan-glow-strong: rgba(234, 88, 12, 0.28);
+            --insight: #2563eb;
+            --insight-strong: #1d4ed8;
+            --insight-glow: rgba(37, 99, 235, 0.16);
+            --insight-glow-strong: rgba(37, 99, 235, 0.28);
+            --perf: #7c6fd8;
+            --perf-bg: #efecfb;
             --danger: #c0392b;
             --warn-bg: #fdf0d8;
             --warn-text: #8a5a06;
@@ -46,12 +55,20 @@
             --brand: #6fa8d8;
             --brand-strong: #8fc0ea;
             --accent-warm: #e2935f;
-            --run: #3ddc84;
-            --run-strong: #2fc470;
-            --scan: #f0924a;
-            --scan-strong: #f7ab70;
-            --insight: #4dd8ce;
-            --insight-strong: #6ee4db;
+            --run: #22c55e;
+            --run-strong: #4ade80;
+            --run-glow: rgba(34, 197, 94, 0.3);
+            --run-glow-strong: rgba(34, 197, 94, 0.5);
+            --scan: #f97316;
+            --scan-strong: #fb923c;
+            --scan-glow: rgba(249, 115, 22, 0.3);
+            --scan-glow-strong: rgba(249, 115, 22, 0.5);
+            --insight: #3b82f6;
+            --insight-strong: #60a5fa;
+            --insight-glow: rgba(59, 130, 246, 0.3);
+            --insight-glow-strong: rgba(59, 130, 246, 0.5);
+            --perf: #b3a9f5;
+            --perf-bg: #27243f;
             --danger: #ef6a5a;
             --warn-bg: #2e2412;
             --warn-text: #e6b65c;
@@ -88,19 +105,49 @@
         #codeEditor { position: relative; height: 320px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; text-align: left; }
         .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
         .actions button { flex: 1 1 140px; }
-        #runBtn { background: var(--run); }
-        #runBtn:hover { background: var(--run-strong); }
-        #analyzeBtn { background: var(--scan); }
-        #analyzeBtn:hover { background: var(--scan-strong); }
-        #explainBtn { background: var(--insight); }
-        #explainBtn:hover { background: var(--insight-strong); }
+        #runBtn { background: var(--run); box-shadow: 0 0 18px var(--run-glow); }
+        #runBtn:hover, #runBtn:focus-visible { background: var(--run-strong); box-shadow: 0 0 26px var(--run-glow-strong); }
+        #analyzeBtn { background: var(--scan); box-shadow: 0 0 18px var(--scan-glow); }
+        #analyzeBtn:hover, #analyzeBtn:focus-visible { background: var(--scan-strong); box-shadow: 0 0 26px var(--scan-glow-strong); }
+        #explainBtn { background: var(--insight); box-shadow: 0 0 18px var(--insight-glow); }
+        #explainBtn:hover, #explainBtn:focus-visible { background: var(--insight-strong); box-shadow: 0 0 26px var(--insight-glow-strong); }
         #stopBtn { background: var(--danger); flex: 0 0 100px; display: none; }
         #stopBtn:hover { filter: brightness(0.9); }
+
+        /* أيقونات SVG مضمّنة (lucide-static) — stroke:currentColor يرث لون النص المحيط تلقائياً */
+        .icon { width: 18px; height: 18px; vertical-align: -4px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+        .icon-sm { width: 15px; height: 15px; vertical-align: -3px; }
+        @keyframes icon-spin { to { transform: rotate(360deg); } }
+        .icon-spin { animation: icon-spin 0.8s linear infinite; }
+
+        /* بطاقات فرعية خفيفة الحدود — نفس القالب البصري داخل كل الخيارات الثلاثة،
+           تفصل الأقسام الداخلية ببساطة دون كسر الإطار الخارجي العام للبطاقة الكلية */
+        .sub-section { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: color-mix(in srgb, var(--text) 2%, transparent); }
+        .sub-section + .sub-section { margin-top: 14px; }
+        .results-card .sub-section:first-child, .explain-card .sub-section:first-child { margin-top: 0; }
+        .results-card .card-title, .explain-card .card-title { border-bottom: none; margin-bottom: 10px; padding-bottom: 0; }
+        .results-card .card-title { color: var(--scan); }
+
+        /* رسالة إيجابية هادئة عند عدم وجود نتائج بدل قسم فارغ */
+        .ok-message { background: color-mix(in srgb, var(--run) 14%, var(--surface-2)); color: var(--run-strong); border-right: 4px solid var(--run); border-radius: 8px; padding: 10px 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+        /* مؤشر تحميل أثناء تشغيل الكود */
+        .run-loading { padding: 22px 14px; text-align: center; transition: opacity .3s ease; }
+        .run-loading.fade-out { opacity: 0; }
+        .run-loading-text { margin-top: 12px; font-size: 13px; color: #9aa5b1; }
+        .loading-dots { display: flex; gap: 7px; justify-content: center; }
+        .loading-dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--run); display: inline-block; animation: dot-pulse 1.2s ease-in-out infinite; }
+        .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dot-pulse { 0%, 80%, 100% { opacity: .3; transform: scale(0.75); } 40% { opacity: 1; transform: scale(1); } }
+        .loading-bar { height: 5px; width: 100%; max-width: 280px; margin: 0 auto; border-radius: 3px; overflow: hidden; background: #222; position: relative; }
+        .loading-bar-fill { position: absolute; top: 0; right: 0; height: 100%; width: 35%; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--run), transparent); animation: bar-slide 1.3s ease-in-out infinite; }
+        @keyframes bar-slide { 0% { transform: translateX(120%); } 100% { transform: translateX(-220%); } }
         .hint { color: var(--text-muted); font-size: 13px; margin-top: 8px; }
 
         .output-card, .results-card { margin-top: 20px; display: none; }
         /* بطاقة التشغيل: إطار أخضر حول البطاقة كاملة، والطرفية داخلها تبقى داكنة دوماً */
-        .output-card { background: #0d0d0d !important; border: 2px solid var(--run) !important; border-radius: 8px; padding: 0 !important; overflow: hidden; }
+        .output-card { background: #0d0d0d !important; border: 2px solid var(--run) !important; border-radius: 8px; padding: 0 !important; overflow: hidden; box-shadow: 0 0 22px var(--run-glow); }
         .output-card .run-header { display: flex; align-items: center; gap: 8px; background: #111; color: var(--run); padding: 10px 14px; font-weight: 700; border-bottom: 1px solid #222; }
         .output-card .run-header .run-lang { color: #9aa5b1; font-weight: 500; }
         .output-card pre { background: #0d0d0d; color: #00ff00; font-family: Consolas, 'Courier New', monospace; font-size: 13px; min-height: 80px; max-height: 320px; overflow-y: auto; padding: 10px 14px; border-radius: 0; margin: 0; }
@@ -111,8 +158,6 @@
         .run-status-line { padding: 6px 14px 10px; font-size: 13px; color: #aaa; background: #0d0d0d; }
 
         /* بطاقة الكود المصحَّح (ضمن نتائج الفحص الذكي — برتقالي) */
-        .fixed-code-card { margin-top: 14px; background: var(--surface); border: 1px solid var(--scan); border-radius: 10px; padding: 18px; display: none; }
-        .fixed-code-card .card-title { color: var(--scan); border-color: var(--scan); }
         .fixed-code-card pre { max-height: 300px; overflow-y: auto; }
         .fixed-code-buttons { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
         .fixed-code-buttons button { width: auto; flex: 0 0 auto; padding: 8px 16px; font-size: 14px; margin-top: 0; }
@@ -130,7 +175,7 @@
         .badge { background: var(--surface-2); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
 
         /* بطاقة نتائج الفحص الذكي — برتقالي (دمج الفحص الساكن + التحليل الشامل) */
-        .results-card { border: 2px solid var(--scan); border-radius: 10px; background: var(--surface); }
+        .results-card { border: 2px solid var(--scan); border-radius: 10px; background: var(--surface); box-shadow: 0 0 22px var(--scan-glow); }
         .issues-list { list-style: none; margin: 0; padding: 0; }
         .issues-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 6px; background: var(--surface-2); }
         .issues-list li.severity-error { border-right: 4px solid var(--err-text); }
@@ -161,9 +206,7 @@
         .security-list li { background: var(--err-bg); color: var(--err-text); border-right: 4px solid var(--danger); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; line-height: 1.5; }
 
         /* بطاقة شرح المساعد الذكي */
-        .ai-card { margin-top: 15px; background: var(--surface); border: 1px solid var(--scan); border-radius: 10px; padding: 20px; display: none; }
-        .ai-card .card-title { color: var(--scan); border-color: var(--scan); }
-        .ai-card .ai-content { line-height: 1.9; white-space: pre-wrap; color: var(--text); }
+        .ai-content { line-height: 1.9; white-space: pre-wrap; color: var(--text); }
         .ai-loading { color: var(--scan); font-style: italic; }
 
         /* نصائح التحسين */
@@ -173,9 +216,7 @@
 
         /* فئة خامسة اختيارية: الأداء والكفاءة — بنفسجي فاتح هادئ، تختلف عمداً عن ألوان الفحص الذكي
            (برتقالي) لأنها ملاحظة تعليمية وليست مشكلة فعلية */
-        :root { --perf: #7c6fd8; --perf-bg: #efecfb; }
-        :root[data-theme="dark"] { --perf: #b3a9f5; --perf-bg: #27243f; }
-        .performance-card { margin-top: 15px; background: var(--perf-bg); border: 1px solid var(--perf); border-radius: 10px; padding: 16px; display: none; }
+        .performance-card { background: var(--perf-bg); border-color: var(--perf) !important; }
         .performance-card .card-title { color: var(--perf); border-color: var(--perf); }
         .performance-list { list-style: none; margin: 10px 0 0; padding: 0; }
         .performance-list li { padding: 8px 12px; margin-bottom: 6px; background: var(--surface); border-radius: 6px; line-height: 1.6; display: flex; gap: 8px; align-items: flex-start; }
@@ -185,7 +226,8 @@
         .blocked-card { margin-top: 20px; background: var(--warn-bg); border: 2px solid var(--warn-text); border-radius: 10px; padding: 18px; display: none; color: var(--warn-text); line-height: 1.7; font-weight: 600; }
 
         /* بطاقة التحليل الذكي (شجرة الكود + شرح الفهم) — تركواز */
-        .explain-card { margin-top: 20px; display: none; border: 2px solid var(--insight); border-radius: 10px; background: var(--surface); padding: 20px; }
+        .explain-card { margin-top: 20px; display: none; border: 2px solid var(--insight); border-radius: 10px; background: var(--surface); padding: 20px; box-shadow: 0 0 22px var(--insight-glow); }
+        .explain-card > .sub-section + .sub-section { margin-top: 14px; }
         .explain-card .card-title { color: var(--insight); border-color: var(--insight); }
         #structureGraph { width: 100%; height: 360px; border-radius: 8px; background: var(--surface-2); }
         .graph-empty-note { color: var(--text-muted); font-size: 13px; padding: 10px; text-align: center; }
@@ -272,10 +314,10 @@
             </div>
 
             <div class="actions">
-                <button id="runBtn">▶ تشغيل</button>
+                <button id="runBtn"><span id="runBtnIcon" class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></span> <span id="runBtnLabel">تشغيل</span></button>
                 <button id="stopBtn">■ إيقاف</button>
-                <button id="analyzeBtn">🩺 فحص ذكي</button>
-                <button id="explainBtn">🧭 تحليل ذكي</button>
+                <button id="analyzeBtn"><span class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span> فحص ذكي</button>
+                <button id="explainBtn"><span class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg></span> تحليل ذكي</button>
             </div>
             <div class="hint" id="runHint">يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.</div>
 
@@ -292,75 +334,89 @@
             </div>
 
             <div id="outputCard" class="output-card">
-                <div class="run-header">▶ <span id="runLangLabel" class="run-lang"></span></div>
+                <div class="run-header"><svg class="icon" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg> <span id="runLangLabel" class="run-lang"></span></div>
+                <div id="runLoading" class="run-loading" style="display:none;">
+                    <div id="runLoadingDots" class="loading-dots" style="display:none;"><span></span><span></span><span></span></div>
+                    <div id="runLoadingBar" class="loading-bar" style="display:none;"><div class="loading-bar-fill"></div></div>
+                    <div id="runLoadingText" class="run-loading-text"></div>
+                </div>
                 <pre><code id="runOutput"></code></pre>
                 <div id="runMeta" class="run-meta" style="display:none;"></div>
                 <div id="runStatus" class="run-status-line"></div>
             </div>
 
-            <!-- نتائج فحص الكود (المرحلتان 3 و4 و5) -->
+            <!-- نتائج فحص الكود (المرحلتان 3 و4 و5) — كل الأقسام الفرعية بطاقات خفيفة الحدود
+                 داخل إطار خارجي برتقالي واحد (results-card)، بنفس قالب الخيار 3 -->
             <div id="resultsCard" class="service-card results-card">
                 <!-- 1. ملخص سريع -->
-                <div class="card-title text-orange">✅ ملخص الفحص الذكي</div>
-                <div id="analyzeSummary" class="summary-line"></div>
-                <div class="assessment-grid">
-                    <div class="assessment-tile">
-                        <div class="tile-label">✅ تقييم الجودة</div>
-                        <div class="tile-value" id="scoreGrade">-</div>
-                    </div>
-                    <div class="assessment-tile">
-                        <div class="tile-label">🐞 عدد المشاكل</div>
-                        <div class="tile-value" id="issuesCount">-</div>
-                    </div>
-                    <div class="assessment-tile">
-                        <div class="tile-label">🧮 التعقيد</div>
-                        <div class="tile-value" id="complexityValue" style="font-size: 16px;">-</div>
-                    </div>
-                    <div class="assessment-tile">
-                        <div class="tile-label">⏱️ وقت التحسين المقدَّر</div>
-                        <div class="tile-value" id="techDebtValue" style="font-size: 16px;">-</div>
-                        <div class="tile-sub">الوقت التقريبي لتنظيف هذا الكود وتحسينه</div>
+                <div class="sub-section">
+                    <div class="card-title">✅ ملخص الفحص الذكي</div>
+                    <div id="analyzeSummary" class="summary-line"></div>
+                    <div class="assessment-grid">
+                        <div class="assessment-tile">
+                            <div class="tile-label">✅ تقييم الجودة</div>
+                            <div class="tile-value" id="scoreGrade">-</div>
+                        </div>
+                        <div class="assessment-tile">
+                            <div class="tile-label"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20v-9"/><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z"/><path d="M14.12 3.88 16 2"/><path d="M21 21a4 4 0 0 0-3.81-4"/><path d="M21 5a4 4 0 0 1-3.55 3.97"/><path d="M22 13h-4"/><path d="M3 21a4 4 0 0 1 3.81-4"/><path d="M3 5a4 4 0 0 0 3.55 3.97"/><path d="M6 13H2"/><path d="m8 2 1.88 1.88"/><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13"/></svg> عدد المشاكل</div>
+                            <div class="tile-value" id="issuesCount">-</div>
+                        </div>
+                        <div class="assessment-tile">
+                            <div class="tile-label"><svg class="icon" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg> التعقيد</div>
+                            <div class="tile-value" id="complexityValue" style="font-size: 16px;">-</div>
+                        </div>
+                        <div class="assessment-tile">
+                            <div class="tile-label"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> وقت التحسين المقدَّر</div>
+                            <div class="tile-value" id="techDebtValue" style="font-size: 16px;">-</div>
+                            <div class="tile-sub">الوقت التقريبي لتنظيف هذا الكود وتحسينه</div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- 2. قائمة الأخطاء والتحذيرات -->
-                <div class="card-title text-orange" style="margin-top: 20px;">🐛 الأخطاء والتحذيرات</div>
-                <ul id="issuesList" class="issues-list"></ul>
+                <div class="sub-section">
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20v-9"/><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z"/><path d="M14.12 3.88 16 2"/><path d="M21 21a4 4 0 0 0-3.81-4"/><path d="M21 5a4 4 0 0 1-3.55 3.97"/><path d="M22 13h-4"/><path d="M3 21a4 4 0 0 1 3.81-4"/><path d="M3 5a4 4 0 0 0 3.55 3.97"/><path d="M6 13H2"/><path d="m8 2 1.88 1.88"/><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13"/></svg> الأخطاء والتحذيرات</div>
+                    <ul id="issuesList" class="issues-list"></ul>
+                </div>
 
                 <!-- 3. الفحص الأمني -->
-                <div class="card-title text-orange" style="margin-top: 20px;">🛡️ الفحص الأمني</div>
-                <div id="securityOk" class="security-ok">لا توجد مخاطر أمنية واضحة</div>
-                <ul id="securityList" class="security-list"></ul>
-            </div>
-
-            <!-- 4. شرح الذكاء الاصطناعي -->
-            <div id="aiCard" class="ai-card">
-                <div class="card-title text-orange">✨ شرح المساعد الذكي</div>
-                <div id="aiContent" class="ai-content"></div>
-            </div>
-
-            <!-- 5. الكود المصحَّح -->
-            <div id="fixedCodeCard" class="fixed-code-card">
-                <div class="card-title">✅ الكود المصحَّح</div>
-                <pre><code id="fixedCodeOutput" dir="ltr" style="text-align:left; font-family: Consolas,'Courier New',monospace; font-size:13px;"></code></pre>
-                <div class="fixed-code-buttons">
-                    <button class="btn-copy-fix" id="copyFixedCodeBtn">📋 نسخ الكود المصحَّح</button>
-                    <button class="btn-use-fix" id="useFixedCodeBtn">⬅️ استخدم هذا الكود في المحرر</button>
+                <div class="sub-section">
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg> الفحص الأمني</div>
+                    <div id="securityOk" class="ok-message security-ok">✅ لا توجد مخاطر أمنية واضحة</div>
+                    <ul id="securityList" class="security-list"></ul>
                 </div>
-            </div>
 
-            <!-- 6. نصائح التحسين -->
-            <div id="improvementsCard" class="ai-card" style="display:none;">
-                <div class="card-title text-orange">💡 نصائح التحسين</div>
-                <ul id="improvementsList" class="improvements-list"></ul>
-                <div id="fixTip" class="fix-tip" style="display:none;"></div>
-            </div>
+                <!-- 4. شرح الذكاء الاصطناعي -->
+                <div id="aiCard" class="sub-section">
+                    <div class="card-title">✨ شرح المساعد الذكي</div>
+                    <div id="aiContent" class="ai-content"></div>
+                </div>
 
-            <!-- فئة خامسة اختيارية: فرصة تعلّم (أداء وكفاءة) — تظهر فقط عند وجود ملاحظة فعلية -->
-            <div id="performanceCard" class="performance-card">
-                <div class="card-title">⚡ فرصة تعلّم: الأداء</div>
-                <ul id="performanceList" class="performance-list"></ul>
-                <div id="performanceNoteText" class="performance-note-text" style="display:none;"></div>
+                <!-- 5. الكود المصحَّح -->
+                <div id="fixedCodeCard" class="sub-section">
+                    <div class="card-title">✅ الكود المصحَّح</div>
+                    <div id="fixedCodeOkMsg" class="ok-message" style="display:none;">✅ الكود جيد كما هو، لا حاجة لأي تعديل.</div>
+                    <pre id="fixedCodePre"><code id="fixedCodeOutput" dir="ltr" style="text-align:left; font-family: Consolas,'Courier New',monospace; font-size:13px;"></code></pre>
+                    <div id="fixedCodeButtons" class="fixed-code-buttons">
+                        <button class="btn-copy-fix" id="copyFixedCodeBtn">📋 نسخ الكود المصحَّح</button>
+                        <button class="btn-use-fix" id="useFixedCodeBtn">⬅️ استخدم هذا الكود في المحرر</button>
+                    </div>
+                </div>
+
+                <!-- 6. نصائح التحسين -->
+                <div id="improvementsCard" class="sub-section">
+                    <div class="card-title">💡 نصائح التحسين</div>
+                    <div id="improvementsOkMsg" class="ok-message" style="display:none;">✅ لا توجد نصائح إضافية حالياً، أسلوب الكود جيد.</div>
+                    <ul id="improvementsList" class="improvements-list"></ul>
+                    <div id="fixTip" class="fix-tip" style="display:none;"></div>
+                </div>
+
+                <!-- فئة خامسة اختيارية: فرصة تعلّم (أداء وكفاءة) — تظهر فقط عند وجود ملاحظة فعلية -->
+                <div id="performanceCard" class="sub-section performance-card" style="display:none;">
+                    <div class="card-title" style="color: var(--perf);"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"/></svg> فرصة تعلّم: الأداء</div>
+                    <ul id="performanceList" class="performance-list"></ul>
+                    <div id="performanceNoteText" class="performance-note-text" style="display:none;"></div>
+                </div>
             </div>
 
             <!-- تحذير: الكود يحتاج جهازاً حقيقياً (كاميرا/حساس) -->
@@ -369,17 +425,23 @@
             <!-- بطاقة التحليل الذكي: شجرة الكود التفاعلية + شرح الفهم -->
             <div id="explainCard" class="explain-card">
                 <!-- 1. الرسم التفاعلي -->
-                <div class="card-title">🧭 خريطة بنية الكود</div>
-                <div id="structureGraph"></div>
-                <div id="graphEmptyNote" class="graph-empty-note" style="display:none;">لم يُعثر على دوال أو كلاسات واضحة في هذا الكود لرسمها.</div>
+                <div class="sub-section">
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg> خريطة بنية الكود</div>
+                    <div id="structureGraph"></div>
+                    <div id="graphEmptyNote" class="graph-empty-note" style="display:none;">لم يُعثر على دوال أو كلاسات واضحة في هذا الكود لرسمها.</div>
+                </div>
 
                 <!-- 2. نظرة عامة من AI -->
-                <div class="card-title" style="margin-top:20px;">🔭 نظرة عامة</div>
-                <div id="overviewBox" class="overview-box"></div>
+                <div class="sub-section">
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="m10.065 12.493-6.18 1.318a.934.934 0 0 1-1.108-.702l-.537-2.15a1.07 1.07 0 0 1 .691-1.265l13.504-4.44"/><path d="m13.56 11.747 4.332-.924"/><path d="m16 21-3.105-6.21"/><path d="M16.485 5.94a2 2 0 0 1 1.455-2.425l1.09-.272a1 1 0 0 1 1.212.727l1.515 6.06a1 1 0 0 1-.727 1.213l-1.09.272a2 2 0 0 1-2.425-1.455z"/><path d="m6.158 8.633 1.114 4.456"/><path d="m8 21 3.105-6.21"/><circle cx="12" cy="13" r="2"/></svg> نظرة عامة</div>
+                    <div id="overviewBox" class="overview-box"></div>
+                </div>
 
                 <!-- 3. شرح كل جزء بالترتيب -->
-                <div class="card-title" style="margin-top:20px;">📖 شرح الأجزاء</div>
-                <div id="sectionsList" class="sections-list"></div>
+                <div class="sub-section">
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></svg> شرح الأجزاء</div>
+                    <div id="sectionsList" class="sections-list"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -545,6 +607,8 @@
         };
 
         const runBtn = document.getElementById("runBtn");
+        const runBtnIcon = document.getElementById("runBtnIcon");
+        const runBtnLabel = document.getElementById("runBtnLabel");
         const stopBtn = document.getElementById("stopBtn");
         const outputCard = document.getElementById("outputCard");
         const runOutput = document.getElementById("runOutput");
@@ -553,6 +617,38 @@
         let activeRun = null;
         let runStartTime = 0;
         let serverHasJudge0Key = false;
+
+        const ICON_PLAY_SVG = '<svg class="icon" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>';
+        const ICON_LOADER_SVG = '<svg class="icon icon-spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+
+        // مؤشر التحميل أثناء التشغيل: نقاط نابضة لتشغيل سريع (Pyodide/Worker)،
+        // شريط تقدّم غير محدَّد (Indeterminate) لتشغيل قد يطول (Judge0)
+        const runLoading = document.getElementById("runLoading");
+        const runLoadingDots = document.getElementById("runLoadingDots");
+        const runLoadingBar = document.getElementById("runLoadingBar");
+        const runLoadingText = document.getElementById("runLoadingText");
+
+        function showRunLoading(kind, text) {
+            runLoading.classList.remove("fade-out");
+            runLoading.style.display = "block";
+            runLoadingDots.style.display = kind === "dots" ? "flex" : "none";
+            runLoadingBar.style.display = kind === "bar" ? "block" : "none";
+            runLoadingText.textContent = text;
+            runBtnIcon.innerHTML = ICON_LOADER_SVG;
+            runBtnLabel.textContent = "جاري التشغيل...";
+        }
+
+        function fadeOutLoadingBox() {
+            if (runLoading.style.display === "none") return;
+            runLoading.classList.add("fade-out");
+            setTimeout(() => { runLoading.style.display = "none"; }, 300);
+        }
+
+        function hideRunLoading() {
+            fadeOutLoadingBox();
+            runBtnIcon.innerHTML = ICON_PLAY_SVG;
+            runBtnLabel.textContent = "تشغيل";
+        }
 
         // فحص ما إذا كان الخادم يحمل مفتاح Judge0 (docker-compose المحلي)
         fetch('/judge0-status').then(r => r.json()).then(d => {
@@ -648,6 +744,7 @@
         }
 
         function appendOutput(text, stream) {
+            fadeOutLoadingBox();
             const span = document.createElement("span");
             span.className = stream === "stderr" ? "stderr" : "stdout";
             span.textContent = text;
@@ -673,7 +770,7 @@
             }
             runStatus.textContent = message;
             runBtn.disabled = false;
-            runBtn.innerText = "▶ تشغيل";
+            hideRunLoading();
             stopBtn.style.display = "none";
         }
 
@@ -692,7 +789,7 @@
             activeRun = { lang, worker, timer: null };
             const run = activeRun;
 
-            runBtn.innerText = lang === "python" ? "جاري تحميل بيئة بايثون..." : "جاري التشغيل...";
+            showRunLoading("dots", lang === "python" ? "جاري تحميل بيئة بايثون..." : "جاري تشغيل الكود...");
             try {
                 await worker.readyPromise;
             } catch (err) {
@@ -702,7 +799,7 @@
             }
             if (activeRun !== run) return;   // أُوقف أثناء التحميل
 
-            runBtn.innerText = "جاري التشغيل...";
+            runLoadingText.textContent = "جاري تشغيل الكود...";
             worker.onmessage = (e) => {
                 if (e.data.type === "out") appendOutput(e.data.text, e.data.stream);
                 if (e.data.type === "done") {
@@ -725,7 +822,8 @@
             activeRun = { lang: null, worker: null, timer: null, abortController: controller };
             const run = activeRun;
 
-            runBtn.innerText = "جاري إرسال الكود لخدمة التشغيل...";
+            showRunLoading("bar", "جاري الاتصال بخادم التنفيذ...");
+            setTimeout(() => { if (activeRun === run) runLoadingText.textContent = "جاري تشغيل الكود..."; }, 900);
             run.timer = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
 
             try {
@@ -864,6 +962,12 @@
 
             // 2. قائمة الأخطاء والتحذيرات (الحرجة أولاً — السيرفر يرتبها مسبقاً)
             issuesList.innerHTML = "";
+            if (!(data.errors || []).length) {
+                const li = document.createElement("li");
+                li.className = "ok-message";
+                li.textContent = "✅ لم يُعثر على أي أخطاء أو تحذيرات. الكود سليم من هذه الناحية.";
+                issuesList.appendChild(li);
+            }
             (data.errors || []).forEach((issue) => {
                 const li = document.createElement("li");
                 li.className = "severity-" + (issue.severity === "error" ? "error" : "warning");
@@ -912,6 +1016,10 @@
             const improvementsList = document.getElementById("improvementsList");
             const fixTipEl = document.getElementById("fixTip");
             const ai = data.ai_explanation;
+            const fixedCodeOkMsg = document.getElementById("fixedCodeOkMsg");
+            const fixedCodePre = document.getElementById("fixedCodePre");
+            const fixedCodeButtons = document.getElementById("fixedCodeButtons");
+            const improvementsOkMsg = document.getElementById("improvementsOkMsg");
             if (ai && typeof ai === "object" && ai.explanation) {
                 aiCard.style.display = "block";
                 aiContent.textContent = ai.explanation;
@@ -921,12 +1029,20 @@
                     li.textContent = ai.security_notes;
                     securityList.appendChild(li);
                 }
+                // 5. الكود المصحَّح — يظهر دوماً: الكود نفسه، أو رسالة إيجابية إن كان الكود جيداً أصلاً
+                fixedCodeCard.style.display = "block";
                 if (ai.fixed_code) {
                     document.getElementById("fixedCodeOutput").textContent = ai.fixed_code;
-                    fixedCodeCard.style.display = "block";
+                    fixedCodePre.style.display = "block";
+                    fixedCodeButtons.style.display = "flex";
+                    fixedCodeOkMsg.style.display = "none";
                 } else {
-                    fixedCodeCard.style.display = "none";
+                    fixedCodePre.style.display = "none";
+                    fixedCodeButtons.style.display = "none";
+                    fixedCodeOkMsg.style.display = "flex";
                 }
+                // 6. نصائح التحسين — تظهر دوماً: النصائح، أو رسالة إيجابية إن لم توجد
+                improvementsCard.style.display = "block";
                 improvementsList.innerHTML = "";
                 const improvements = Array.isArray(ai.improvements) ? ai.improvements : [];
                 improvements.forEach((imp) => {
@@ -940,7 +1056,7 @@
                 } else {
                     fixTipEl.style.display = "none";
                 }
-                improvementsCard.style.display = (improvements.length || ai.tip) ? "block" : "none";
+                improvementsOkMsg.style.display = (improvements.length || ai.tip) ? "none" : "flex";
             } else {
                 aiCard.style.display = "none";
                 fixedCodeCard.style.display = "none";
@@ -1128,9 +1244,17 @@
                 const ai = data.ai_explanation;
                 const overviewBox = document.getElementById("overviewBox");
                 const sectionsList = document.getElementById("sectionsList");
+                sectionsList.innerHTML = "";
                 if (ai && ai.overview) {
                     overviewBox.textContent = ai.overview;
-                    (ai.sections || []).forEach((sec) => {
+                    const sections = ai.sections || [];
+                    if (!sections.length) {
+                        const note = document.createElement("div");
+                        note.className = "ok-message";
+                        note.textContent = "✅ لا توجد أجزاء إضافية لشرحها — خريطة البنية أعلاه تلخّص الكود بالكامل.";
+                        sectionsList.appendChild(note);
+                    }
+                    sections.forEach((sec) => {
                         const div = document.createElement("div");
                         div.className = "section-item";
                         const head = document.createElement("div");
@@ -1154,6 +1278,13 @@
                     });
                 } else {
                     overviewBox.textContent = "تعذّر الحصول على شرح من الذكاء الاصطناعي حالياً — يمكنك تصفح خريطة البنية أعلاه فقط.";
+                    const note = document.createElement("div");
+                    note.className = "ok-message";
+                    note.style.background = "var(--warn-bg)";
+                    note.style.color = "var(--warn-text)";
+                    note.style.borderRightColor = "var(--warn-text)";
+                    note.textContent = "⚠️ لا تتوفر حالياً خدمة شرح الأجزاء بالذكاء الاصطناعي.";
+                    sectionsList.appendChild(note);
                 }
             } catch (err) {
                 explainCard.style.display = "none";
