@@ -29,6 +29,7 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 MONACO_DIR = os.path.join(BASE_DIR, 'node_modules', 'monaco-editor', 'min')
 ECHARTS_DIR = os.path.join(BASE_DIR, 'node_modules', 'echarts', 'dist')
+FONTS_DIR = os.path.join(BASE_DIR, 'node_modules', '@fontsource', 'ibm-plex-sans-arabic', 'files')
 
 @app.route('/', methods=['GET'])
 def home():
@@ -56,6 +57,11 @@ def serve_monaco(filename):
 def serve_echarts(filename):
     """تقديم ملف ECharts من المجلد المحلي (node_modules، بدون أي CDN خارجي)."""
     return send_from_directory(ECHARTS_DIR, filename)
+
+@app.route('/fonts/<path:filename>')
+def serve_fonts(filename):
+    """تقديم ملفات خط IBM Plex Sans Arabic من المجلد المحلي (node_modules، بدون Google Fonts CDN)."""
+    return send_from_directory(FONTS_DIR, filename)
 
 # ============================================================
 #  المرحلة 3 و4: فحص الجودة والتعقيد والديون التقنية (POST /analyze)
