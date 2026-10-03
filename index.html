@@ -245,9 +245,9 @@
         /* بطاقة نتائج الفحص الذكي — برتقالي (دمج الفحص الساكن + التحليل الشامل) */
         .results-card { border: 2px solid var(--scan); border-radius: 10px; background: var(--surface); box-shadow: 0 0 22px var(--scan-glow); }
         .issues-list { list-style: none; margin: 0; padding: 0; }
-        .issues-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 6px; background: var(--surface-2); }
-        .issues-list li.severity-error { border-right: 4px solid var(--err-text); }
-        .issues-list li.severity-warning { border-right: 4px solid var(--warn-text); }
+        /* صندوق موحَّد بلون القسم (برتقالي) لكل عناصر "فحص ذكي" — شارة sev-tag الصغيرة
+           وحدها تبقى حمراء/صفراء للتمييز السريع بين خطأ وتحذير */
+        .issues-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 6px; background: var(--msg-bg); color: var(--text); border-right: 4px solid color-mix(in srgb, var(--scan) 55%, transparent); }
         .issue-line { width: auto; flex: 0 0 auto; background: var(--surface); color: var(--brand); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-family: monospace; font-weight: bold; cursor: pointer; white-space: nowrap; }
         .issue-line:hover { background: var(--border); }
         /* min-width:0 ضروري كي يقبل هذا العنصر الانكماش داخل flex بدل دفع فقاعة السطر بعرضه الكامل */
@@ -271,7 +271,7 @@
         .security-ok { display: none; }
         .security-ok.active { display: flex; }
         .security-list { list-style: none; margin: 15px 0 0; padding: 0; }
-        .security-list li { background: var(--msg-bg); color: var(--text); border-right: 4px solid color-mix(in srgb, var(--danger) 55%, transparent); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; line-height: 1.5; }
+        .security-list li { background: var(--msg-bg); color: var(--text); border-right: 4px solid color-mix(in srgb, var(--scan) 55%, transparent); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; line-height: 1.5; }
 
         /* بطاقة شرح المساعد الذكي */
         .ai-content { line-height: 1.9; white-space: pre-wrap; color: var(--text); }
@@ -300,7 +300,7 @@
         .graph-empty-note { color: var(--text-muted); font-size: 13px; padding: 10px; text-align: center; }
         .overview-box { margin-top: 15px; padding: 12px 14px; background: var(--msg-bg); color: var(--text); border-radius: 8px; border-right: 4px solid color-mix(in srgb, var(--insight) 55%, transparent); line-height: 1.7; }
         .sections-list { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .section-item { background: var(--surface-2); border-radius: 8px; padding: 12px 14px; }
+        .section-item { background: var(--msg-bg); color: var(--text); border-right: 4px solid color-mix(in srgb, var(--insight) 55%, transparent); border-radius: 8px; padding: 12px 14px; }
         .section-item .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
         .section-item .section-title { font-weight: 700; color: var(--insight-strong); }
         .section-item .section-line-btn { background: var(--surface); color: var(--insight); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; font-family: monospace; font-size: 12px; cursor: pointer; width: auto; }
@@ -398,7 +398,7 @@
                     <button id="clearJudge0KeyBtn" style="background:#7f1d1d;display:none;">🗑️ حذف المفتاح</button>
                     <a class="judge0-link" href="https://rapidapi.com/judge0-official/api/judge0-ce" target="_blank" rel="noopener">احصل على مفتاح مجاني من rapidapi.com ↗</a>
                 </div>
-                <div class="judge0-saved" id="judge0Saved">✅ تم حفظ المفتاح — يمكنك الآن تشغيل الكود</div>
+                <div class="judge0-saved" id="judge0Saved"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> تم حفظ المفتاح — يمكنك الآن تشغيل الكود</div>
             </div>
 
             <div id="outputCard" class="output-card">
@@ -450,7 +450,7 @@
                 <!-- 3. الفحص الأمني -->
                 <div class="sub-section">
                     <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg> الفحص الأمني</div>
-                    <div id="securityOk" class="ok-message security-ok">✅ لا توجد مخاطر أمنية واضحة</div>
+                    <div id="securityOk" class="ok-message security-ok"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> لا توجد مخاطر أمنية واضحة</div>
                     <ul id="securityList" class="security-list"></ul>
                 </div>
 
@@ -1047,6 +1047,8 @@
             return text.replace(/^[\p{Extended_Pictographic}‍️]+\s*/u, "");
         }
 
+        const ICON_CHECK_SVG = '<svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+
         function jumpToLine(line) {
             if (!editor) return;
             editor.revealLineInCenter(line);
@@ -1074,7 +1076,7 @@
             if (!(data.errors || []).length) {
                 const li = document.createElement("li");
                 li.className = "ok-message";
-                li.textContent = "✅ لم يُعثر على أي أخطاء أو تحذيرات. الكود سليم من هذه الناحية.";
+                li.innerHTML = ICON_CHECK_SVG + " لم يُعثر على أي أخطاء أو تحذيرات. الكود سليم من هذه الناحية.";
                 issuesList.appendChild(li);
             }
             (data.errors || []).forEach((issue) => {
@@ -1360,7 +1362,7 @@
                     if (!sections.length) {
                         const note = document.createElement("div");
                         note.className = "ok-message";
-                        note.textContent = "✅ لا توجد أجزاء إضافية لشرحها — خريطة البنية أعلاه تلخّص الكود بالكامل.";
+                        note.innerHTML = ICON_CHECK_SVG + " لا توجد أجزاء إضافية لشرحها — خريطة البنية أعلاه تلخّص الكود بالكامل.";
                         sectionsList.appendChild(note);
                     }
                     sections.forEach((sec) => {
