@@ -622,7 +622,9 @@ PROVIDER_ENDPOINTS = {
 def call_ai_model(role, messages, max_tokens=700):
     """نموذج مخصَّص حسب الدور: role='text' لشرح/تحليل تعليمي، role='code' لتوليد كود فقط.
     يقرأ {ROLE}_MODEL_PROVIDER / _NAME / _API_KEY من البيئة. عند غياب أي منها أو فشل
-    الاستدعاء، يتراجع لسلسلة المزوّدين العامة _call_ai_chain() (توافق مع الإعداد القديم)."""
+    الاستدعاء (مفتاح/اسم نموذج غير صحيح مثلاً)، يتراجع لإعداد TEXT_MODEL (الأكثر
+    موثوقية عادة لأنه المُستخدَم فعلياً وناجح) قبل اللجوء أخيراً لسلسلة المزوّدين
+    العامة _call_ai_chain() (توافق مع الإعداد القديم)."""
     prefix = role.upper() + "_MODEL_"
     provider = os.environ.get(prefix + "PROVIDER")
     model_name = os.environ.get(prefix + "NAME")
@@ -635,6 +637,18 @@ def call_ai_model(role, messages, max_tokens=700):
                 return _call_openai_compat(endpoint, api_key, model_name, messages, max_tokens)
             except Exception:
                 pass
+
+    if role != "text":
+        t_provider = os.environ.get("TEXT_MODEL_PROVIDER")
+        t_model = os.environ.get("TEXT_MODEL_NAME")
+        t_key = os.environ.get("TEXT_MODEL_API_KEY")
+        if t_provider and t_model and t_key:
+            endpoint = PROVIDER_ENDPOINTS.get(t_provider)
+            if endpoint:
+                try:
+                    return _call_openai_compat(endpoint, t_key, t_model, messages, max_tokens)
+                except Exception:
+                    pass
 
     return _call_ai_chain(messages, max_tokens)
 
