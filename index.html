@@ -263,6 +263,9 @@
         .assessment-tile .tile-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
         .assessment-tile .tile-sub { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
         .assessment-tile .tile-value { font-size: 22px; font-weight: 800; color: var(--text); }
+        .priority-high { color: var(--err-text); }
+        .priority-medium { color: var(--warn-text); }
+        .priority-low { color: var(--run); }
 
         /* الفحص الأمني */
         .security-ok { display: none; }
@@ -437,9 +440,9 @@
                             <div class="tile-value" id="complexityValue" style="font-size: 16px;">-</div>
                         </div>
                         <div class="assessment-tile">
-                            <div class="tile-label"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> وقت التحسين المقدَّر</div>
-                            <div class="tile-value" id="techDebtValue" style="font-size: 16px;">-</div>
-                            <div class="tile-sub">الوقت التقريبي لتنظيف هذا الكود وتحسينه</div>
+                            <div class="tile-label"><svg class="icon" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></svg> أولوية الإصلاح</div>
+                            <div class="tile-value" id="fixPriorityValue" style="font-size: 16px;">-</div>
+                            <div class="tile-sub">مدى إلحاح إصلاح هذا الكود قبل غيره</div>
                         </div>
                     </div>
                 </div>
@@ -1081,7 +1084,9 @@
             const complexityEl = document.getElementById("complexityValue");
             complexityEl.textContent = `${data.complexity.value} - ${data.complexity.label}`;
             complexityEl.className = "tile-value";
-            document.getElementById("techDebtValue").textContent = data.technical_debt;
+            const priorityEl = document.getElementById("fixPriorityValue");
+            priorityEl.textContent = data.fix_priority.label;
+            priorityEl.className = "tile-value priority-" + data.fix_priority.level;
 
             // 2. قائمة الأخطاء والتحذيرات (الحرجة أولاً — السيرفر يرتبها مسبقاً)
             issuesList.innerHTML = "";
