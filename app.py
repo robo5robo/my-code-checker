@@ -1,5 +1,6 @@
 import os
 import re
+import ast
 import uuid
 import shutil
 import subprocess
@@ -27,6 +28,7 @@ TEMP_DIR = os.path.join(BASE_DIR, "temp_files")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 MONACO_DIR = os.path.join(BASE_DIR, 'node_modules', 'monaco-editor', 'min')
+ECHARTS_DIR = os.path.join(BASE_DIR, 'node_modules', 'echarts', 'dist')
 
 @app.route('/', methods=['GET'])
 def home():
@@ -49,6 +51,11 @@ def serve_monaco(filename):
         return send_from_directory(MONACO_DIR, filename)
     cdn = f'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/{filename}'
     return redirect(cdn, code=302)
+
+@app.route('/echarts/<path:filename>')
+def serve_echarts(filename):
+    """تقديم ملف ECharts من المجلد المحلي (node_modules، بدون أي CDN خارجي)."""
+    return send_from_directory(ECHARTS_DIR, filename)
 
 # ============================================================
 #  المرحلة 3 و4: فحص الجودة والتعقيد والديون التقنية (POST /analyze)
@@ -579,6 +586,213 @@ def analyze():
     finally:
         if os.path.exists(analyze_dir):
             shutil.rmtree(analyze_dir, ignore_errors=True)
+
+
+# ============================================================
+#  زر "تحليل ذكي": استخراج بنية الكود (دوال/كلاسات/استدعاءات)
+#  لرسمها كشجرة تفاعلية + شرح تعليمي بالذكاء الاصطناعي (فهم، لا أخطاء).
+# ============================================================
+
+def extract_structure_python(code):
+    """ast المدمجة: دوال، كلاسات، استيرادات، واستدعاءات الدوال داخل بعضها."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return {"nodes": [], "edges": []}
+
+    nodes = []
+    edges = []
+    scope_stack = []
+
+    class Visitor(ast.NodeVisitor):
+        def _import(self, node):
+            for alias in node.names:
+                name = alias.asname or alias.name.split(".")[0]
+                nodes.append({"id": name, "type": "import", "line": node.lineno})
+
+        def visit_Import(self, node):
+            self._import(node)
+            self.generic_visit(node)
+
+        def visit_ImportFrom(self, node):
+            self._import(node)
+            self.generic_visit(node)
+
+        def visit_ClassDef(self, node):
+            nodes.append({"id": node.name, "type": "class", "line": node.lineno})
+            scope_stack.append(node.name)
+            self.generic_visit(node)
+            scope_stack.pop()
+
+        def _func(self, node):
+            nodes.append({"id": node.name, "type": "function", "line": node.lineno})
+            scope_stack.append(node.name)
+            self.generic_visit(node)
+            scope_stack.pop()
+
+        visit_FunctionDef = _func
+        visit_AsyncFunctionDef = _func
+
+        def visit_Call(self, node):
+            if scope_stack:
+                callee = None
+                if isinstance(node.func, ast.Name):
+                    callee = node.func.id
+                elif isinstance(node.func, ast.Attribute):
+                    callee = node.func.attr
+                if callee:
+                    edges.append({"source": scope_stack[-1], "target": callee})
+            self.generic_visit(node)
+
+    Visitor().visit(tree)
+    known = {n["id"] for n in nodes if n["type"] in ("function", "class")}
+    seen = set()
+    uniq_edges = []
+    for e in edges:
+        if e["target"] in known and e["source"] != e["target"] and (e["source"], e["target"]) not in seen:
+            seen.add((e["source"], e["target"]))
+            uniq_edges.append(e)
+    return {"nodes": nodes, "edges": uniq_edges}
+
+
+def _js_body_text(code, start):
+    brace_pos = code.find('{', start)
+    if brace_pos == -1:
+        return ""
+    depth = 0
+    for i in range(brace_pos, len(code)):
+        if code[i] == '{':
+            depth += 1
+        elif code[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return code[brace_pos:i + 1]
+    return code[brace_pos:]
+
+
+def extract_structure_js(code):
+    """استخراج مبسّط بـ regex لدوال وكلاسات JavaScript/TypeScript واستدعاءاتها."""
+    patterns = [
+        (r'function\s+([A-Za-z_$][\w$]*)\s*\(', "function"),
+        (r'class\s+([A-Za-z_$][\w$]*)', "class"),
+        (r'(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>', "function"),
+        (r'(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*function', "function"),
+    ]
+    matches = []
+    for pat, typ in patterns:
+        for m in re.finditer(pat, code):
+            matches.append((m.start(), m.group(1), typ))
+    matches.sort(key=lambda t: t[0])
+
+    nodes, seen = [], set()
+    for start, name, typ in matches:
+        if name in seen:
+            continue
+        seen.add(name)
+        nodes.append({"id": name, "type": typ, "line": code.count('\n', 0, start) + 1, "_start": start})
+
+    known = {n["id"] for n in nodes}
+    edges, seen_edges = [], set()
+    for n in nodes:
+        body = _js_body_text(code, n["_start"])
+        for other in known:
+            if other == n["id"]:
+                continue
+            if re.search(r'\b' + re.escape(other) + r'\s*\(', body) and (n["id"], other) not in seen_edges:
+                seen_edges.add((n["id"], other))
+                edges.append({"source": n["id"], "target": other})
+    for n in nodes:
+        n.pop("_start", None)
+    return {"nodes": nodes, "edges": edges}
+
+
+GENERIC_FUNC_PATTERNS = {
+    "go": r'func\s+([A-Za-z_]\w*)\s*\(',
+    "rust": r'fn\s+([A-Za-z_]\w*)\s*\(',
+    "php": r'function\s+([A-Za-z_]\w*)\s*\(',
+    "ruby": r'def\s+([A-Za-z_]\w*[?!]?)',
+    "kotlin": r'fun\s+([A-Za-z_]\w*)\s*\(',
+    "swift": r'func\s+([A-Za-z_]\w*)\s*\(',
+    "bash": r'(?:function\s+)?([A-Za-z_]\w*)\s*\(\)\s*\{',
+    # Java/C#: تطابق توقيع دالة عام قبل قوس معقوص — تخمين نصي، قد يُغفل حالات نادرة
+    "java": r'(?:public|private|protected|static|final|\s)+[\w<>\[\],\s]+?\s([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{',
+    "csharp": r'(?:public|private|protected|static|\s)+[\w<>\[\]]+\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{',
+}
+GENERIC_SKIP_NAMES = {"if", "for", "while", "switch", "catch", "else", "do"}
+
+
+def extract_structure_generic(code, language):
+    """فحص نصي أساسي لأسماء الدوال لبقية اللغات (TODO: استبداله بأداة تحليل بنية مخصصة لكل لغة لاحقاً)."""
+    pattern = GENERIC_FUNC_PATTERNS.get(language)
+    if not pattern:
+        return {"nodes": [], "edges": []}
+
+    nodes, seen = [], set()
+    for m in re.finditer(pattern, code):
+        name = m.group(1)
+        if name in seen or name in GENERIC_SKIP_NAMES:
+            continue
+        seen.add(name)
+        nodes.append({"id": name, "type": "function", "line": code.count('\n', 0, m.start()) + 1})
+
+    nodes.sort(key=lambda n: n["line"])
+    lines = code.split('\n')
+    edges, seen_edges = [], set()
+    for i, n in enumerate(nodes):
+        end_line = nodes[i + 1]["line"] if i + 1 < len(nodes) else len(lines) + 1
+        body = "\n".join(lines[n["line"]:end_line - 1])
+        for other in seen:
+            if other == n["id"]:
+                continue
+            if re.search(r'\b' + re.escape(other) + r'\s*\(', body) and (n["id"], other) not in seen_edges:
+                seen_edges.add((n["id"], other))
+                edges.append({"source": n["id"], "target": other})
+    return {"nodes": nodes, "edges": edges}
+
+
+def extract_code_structure(language, code):
+    if language == "python":
+        return extract_structure_python(code)
+    if language in ("javascript", "typescript"):
+        return extract_structure_js(code)
+    return extract_structure_generic(code, language)
+
+
+def get_ai_structure_explanation(language, code, structure):
+    """شرح تعليمي لفهم الكود (لا أخطاء ولا تحسينات) — برومبت مختلف تماماً عن الفحص الذكي."""
+    node_summary = ", ".join(f"{n['id']} (سطر {n['line']})" for n in structure["nodes"][:15]) or "لا توجد دوال واضحة"
+    prompt = (
+        f"اشرح للطالب كيف يعمل هذا الكود المكتوب بلغة {language} خطوة بخطوة بلغة عربية مبسطة ومشجعة. "
+        "اذكر ماذا يفعل البرنامج عموماً بجملتين، ثم اشرح كل دالة أو جزء مهم بترتيب منطقي للفهم (لا بترتيب الأسطر)، "
+        "مع ذكر سطر البداية لكل جزء. لا تذكر أخطاء أو تحسينات، فقط افهم واشرح.\n\n"
+        f"الأجزاء المكتشفة: {node_summary}\n\n"
+        f"الكود:\n```\n{code[:1500]}\n```\n\n"
+        "أعد ردك بصيغة JSON فقط بهذا الشكل (بدون أي نص خارج JSON):\n"
+        '{"overview": "نظرة عامة بجملتين", '
+        '"sections": [{"title": "اسم الجزء", "line": رقم_البداية, "explanation": "شرح مبسط"}]}'
+    )
+    messages = [{"role": "user", "content": prompt}]
+    text = _call_ai_chain(messages, max_tokens=900)
+    if text:
+        return _parse_ai_json(text, defaults={"sections": []})
+    return None
+
+
+@app.route('/explain', methods=['POST'])
+def explain():
+    data = request.get_json()
+    if not data or 'code' not in data or 'language' not in data:
+        return jsonify({"error": "البيانات المرسلة غير مكتملة"}), 400
+
+    code = data['code']
+    language = data['language'].lower()
+    structure = extract_code_structure(language, code)
+    ai_explanation = get_ai_structure_explanation(language, code, structure)
+
+    return jsonify({
+        "structure": structure,
+        "ai_explanation": ai_explanation,
+    })
 
 
 @app.route('/judge0-status')
