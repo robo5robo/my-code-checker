@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import shutil
 import subprocess
 import json
 import urllib.request
@@ -58,7 +59,101 @@ ANALYZE_EXTENSIONS = {
     "python": ".py", "javascript": ".js",
     "c": ".c", "cpp": ".cpp",
     "html": ".html", "json": ".json",
+    "java": ".java", "go": ".go", "rust": ".rs", "php": ".php", "ruby": ".rb",
+    "csharp": ".cs", "kotlin": ".kt", "swift": ".swift", "typescript": ".ts", "bash": ".sh",
 }
+
+# فحص أمان نصي عام (regex) يُطبَّق على كل اللغات بالإضافة لأدوات الفحص الساكن الخاصة بكل لغة
+SECURITY_PATTERNS = [
+    (r'(api[_-]?key|secret|password|passwd|token)\s*[=:]\s*["\'][A-Za-z0-9_\-]{8,}["\']',
+     "مفتاح أو كلمة مرور مكتوبة مباشرة في الكود (hardcoded secret) — استخدم متغيرات البيئة بدلاً من ذلك"),
+    (r'\beval\s*\(', "استخدام eval() خطر — يُنفّذ أي نص كأنه كود برمجي"),
+    (r'\bexec\s*\(', "استخدام exec() خطر — يُنفّذ أي نص كأنه كود برمجي"),
+    (r'os\.system\s*\(', "استخدام os.system() قد يسمح بحقن أوامر (command injection) إن جاء الدخل من المستخدم"),
+    (r'subprocess\.\w+\([^)]*shell\s*=\s*True', "استخدام subprocess مع shell=True قد يسمح بحقن أوامر"),
+    (r'(SELECT|INSERT|UPDATE|DELETE)\b.{0,40}["\']?\s*\+\s*\w+', "احتمال دمج نصي لاستعلام قاعدة بيانات (SQL Injection) بدل الاستعلامات المُعامَلة (parameterized)"),
+]
+
+
+def scan_security_patterns(code):
+    findings = []
+    for pattern, message in SECURITY_PATTERNS:
+        if re.search(pattern, code, re.IGNORECASE):
+            findings.append(message)
+    return findings
+
+
+def analyze_generic_basic(code):
+    """فحص نصي أساسي للغات التي لا تملك أداة فحص مثبّتة بعد (Go, Rust, PHP, Ruby, C#, Kotlin, Swift, TypeScript, Bash).
+    يتحقق فقط من توازن الأقواس. TODO: استبداله لاحقاً بأداة فحص مخصصة لكل لغة (مثل golangci-lint، clippy، phpstan...)."""
+    errors = []
+    pairs = {')': '(', ']': '[', '}': '{'}
+    stack = []
+    for i, ch in enumerate(code):
+        if ch in "([{":
+            stack.append((ch, code.count('\n', 0, i) + 1))
+        elif ch in ")]}":
+            line = code.count('\n', 0, i) + 1
+            if stack and stack[-1][0] == pairs[ch]:
+                stack.pop()
+            else:
+                errors.append({"line": line, "message": f"قوس غير متطابق: '{ch}'", "severity": "error"})
+    for ch, line in stack:
+        errors.append({"line": line, "message": f"قوس لم يُغلَق: '{ch}'", "severity": "error"})
+    if not errors:
+        errors.append({"line": 1, "message": "فحص أساسي فقط لهذه اللغة (توازن الأقواس) — لا توجد أداة فحص متقدمة مثبّتة بعد.", "severity": "warning"})
+    return errors
+
+
+def analyze_js_errors_eslint(code, file_path):
+    """ESLint مثبَّت محلياً (node_modules) لفحص JavaScript، مع fallback للفحص النصي اليدوي إن تعذّر تشغيله."""
+    eslint_bin = os.path.join(BASE_DIR, "node_modules", ".bin", "eslint")
+    config_path = os.path.join(BASE_DIR, "eslint.config.js")
+    if not os.path.exists(eslint_bin):
+        return analyze_js_errors(code)
+    try:
+        result = subprocess.run(
+            [eslint_bin, "--no-config-lookup", "-c", config_path, "--format", "json", file_path],
+            capture_output=True, text=True, timeout=10
+        )
+        reports = json.loads(result.stdout) if result.stdout.strip() else []
+        errors = []
+        for report in reports:
+            for m in report.get("messages", []):
+                errors.append({
+                    "line": m.get("line", 1),
+                    "message": f"[{m.get('ruleId') or 'syntax'}] {m.get('message', '')}",
+                    "severity": "error" if m.get("severity") == 2 else "warning",
+                })
+        return errors
+    except Exception:
+        return analyze_js_errors(code)
+
+
+def analyze_java_errors(code, analyze_dir):
+    """javac -Xlint لفحص صياغة Java (فحص فقط، بدون تشغيل) إن توفّر JDK في الصورة، وإلا فحص أساسي."""
+    javac = "javac"
+    try:
+        subprocess.run([javac, "-version"], capture_output=True, timeout=5)
+    except Exception:
+        return analyze_generic_basic(code)
+
+    file_path = os.path.join(analyze_dir, "Main.java")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(code)
+    errors = []
+    try:
+        result = subprocess.run(
+            [javac, "-Xlint:all", "-d", analyze_dir, file_path],
+            capture_output=True, text=True, timeout=15
+        )
+        for line in (result.stderr or "").splitlines():
+            m = re.match(r'^[^:]+:(\d+):\s*(error|warning):\s*(.+)$', line)
+            if m:
+                errors.append({"line": int(m.group(1)), "message": m.group(3), "severity": m.group(2)})
+    except Exception as e:
+        errors.append({"line": 1, "message": f"تعذّر تشغيل javac: {e}", "severity": "warning"})
+    return errors
 
 VOID_HTML_TAGS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
@@ -386,30 +481,38 @@ def _call_ai_chain(messages, max_tokens=700):
     return None
 
 
-def get_ai_explanation(language, errors, score, complexity, code=""):
-    """شرح الأخطاء بالذكاء الاصطناعي: Groq ← Cerebras ← Claude ← Gemini."""
+def get_ai_explanation(language, errors, score, complexity, code="", security_issues=None):
+    """شرح موحّد بالذكاء الاصطناعي لكل فئات الفحص: أخطاء، أمان، أسلوب، تعقيد. Groq ← Cerebras ← Claude ← Gemini."""
     n_err = sum(1 for e in errors if e["severity"] == "error")
     n_warn = sum(1 for e in errors if e["severity"] == "warning")
-    errors_text = "\n".join(f"- سطر {e['line']}: {e['message']}" for e in errors[:5]) if errors else "لا توجد أخطاء"
+    errors_text = "\n".join(f"- سطر {e['line']}: {e['message']}" for e in errors[:6]) if errors else "لا توجد أخطاء"
+    security_text = "\n".join(f"- {s}" for s in security_issues) if security_issues else "لا توجد ملاحظات أمان من الفحص الساكن"
 
     prompt = (
-        f"أنت مساعد تعليمي لطلاب البرمجة. فيما يلي كود بلغة {language} ونتائج فحصه:\n\n"
-        f"الكود:\n```\n{code[:800]}\n```\n\n"
-        f"الأخطاء المكتشفة ({n_err} خطأ، {n_warn} تحذير):\n{errors_text}\n\n"
+        f"أنت مساعد تعليمي لطلاب البرمجة. فيما يلي كود بلغة {language} ونتائج فحصه الساكن:\n\n"
+        f"الكود:\n```\n{code[:1200]}\n```\n\n"
+        f"الأخطاء والتحذيرات ({n_err} خطأ، {n_warn} تحذير):\n{errors_text}\n\n"
+        f"ملاحظات أمان أولية من الفحص الساكن:\n{security_text}\n\n"
         "أعد ردك بصيغة JSON فقط بهذا الشكل (بدون أي نص خارج JSON):\n"
-        '{"explanation": "شرح مبسط للمشكلة في جملتين", '
-        '"fixed_code": "الكود كاملاً بعد تصحيح كل الأخطاء", '
-        '"tip": "نصيحة واحدة لتحسين الأسلوب"}'
+        '{"explanation": "شرح المشكلة الرئيسية بجملتين", '
+        '"fixed_code": "الكود كاملاً بعد التصحيح", '
+        '"security_notes": "ملاحظات أمان إضافية بجملة أو جملتين، أو null إن لم توجد مخاطر", '
+        '"improvements": ["نصيحة تحسين 1", "نصيحة تحسين 2"], '
+        '"tip": "نصيحة أسلوب عامة"}'
     )
     messages = [{"role": "user", "content": prompt}]
     text = _call_ai_chain(messages)
     if text:
-        return _parse_ai_json(text, defaults={"fixed_code": None, "tip": None})
+        return _parse_ai_json(text, defaults={
+            "fixed_code": None, "security_notes": None, "improvements": [], "tip": None,
+        })
     return None
 
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
+    """فحص ذكي موحّد (دمج الفحص الساكن والتحليل الشامل السابقين) لكل اللغات المتاحة في المنصة.
+    4 فئات: أخطاء برمجية، ثغرات أمنية، جودة الأسلوب، التعقيد."""
     data = request.get_json()
     if not data or 'code' not in data or 'language' not in data:
         return jsonify({"error": "البيانات المرسلة غير مكتملة"}), 400
@@ -419,7 +522,9 @@ def analyze():
     if language not in ANALYZE_EXTENSIONS:
         return jsonify({"error": "هذه اللغة غير مدعومة حالياً للفحص"}), 400
 
-    file_path = os.path.join(TEMP_DIR, f"analyze_{uuid.uuid4().hex}{ANALYZE_EXTENSIONS[language]}")
+    analyze_dir = os.path.join(TEMP_DIR, f"analyze_{uuid.uuid4().hex}")
+    os.makedirs(analyze_dir, exist_ok=True)
+    file_path = os.path.join(analyze_dir, f"code{ANALYZE_EXTENSIONS[language]}")
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(code)
 
@@ -428,7 +533,7 @@ def analyze():
             errors = analyze_python_errors(code, file_path)
             complexity_value, complexity_rank = analyze_python_complexity(code)
         elif language == "javascript":
-            errors = analyze_js_errors(code)
+            errors = analyze_js_errors_eslint(code, file_path)
             complexity_value, complexity_rank = analyze_lizard_complexity(file_path)
         elif language in ("c", "cpp"):
             errors = analyze_c_cpp_errors(file_path, language)
@@ -436,9 +541,20 @@ def analyze():
         elif language == "html":
             errors = analyze_html_errors(code)
             complexity_value, complexity_rank = 1, "A"
-        else:  # json
+        elif language == "json":
             errors = analyze_json_errors(code)
             complexity_value, complexity_rank = 1, "A"
+        elif language == "java":
+            errors = analyze_java_errors(code, analyze_dir)
+            complexity_value, complexity_rank = analyze_lizard_complexity(file_path)
+        else:  # Go, Rust, PHP, Ruby, C#, Kotlin, Swift, TypeScript, Bash — فحص أساسي حالياً
+            errors = analyze_generic_basic(code)
+            complexity_value, complexity_rank = analyze_lizard_complexity(file_path)
+
+        # الأخطاء الحرجة أولاً
+        errors.sort(key=lambda e: 0 if e["severity"] == "error" else 1)
+
+        security_issues = scan_security_patterns(code)
 
         score = compute_score(errors)
         complexity_obj = {
@@ -446,7 +562,9 @@ def analyze():
             "value": complexity_value,
             "label": _complexity_label(complexity_rank),
         }
-        ai_explanation = get_ai_explanation(language, errors, score, complexity_obj, code=code)
+        ai_explanation = get_ai_explanation(
+            language, errors, score, complexity_obj, code=code, security_issues=security_issues
+        )
 
         return jsonify({
             "errors": errors,
@@ -455,110 +573,13 @@ def analyze():
             "complexity": complexity_obj,
             "technical_debt": compute_technical_debt(errors, complexity_value),
             "lines": count_lines(code, language),
+            "security_issues": security_issues,
             "ai_explanation": ai_explanation,
         })
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        if os.path.exists(analyze_dir):
+            shutil.rmtree(analyze_dir, ignore_errors=True)
 
-
-@app.route('/api/check-code', methods=['POST'])
-def check_code():
-    data = request.get_json()
-    if not data or 'code' not in data or 'language' not in data:
-        return jsonify({"error": "البيانات المرسلة غير مكتملة"}), 400
-    
-    code_content = data['code']
-    language = data['language'].lower()
-    
-    extensions = {"python": "temp.py", "c": "temp.c", "cpp": "temp.cpp", "javascript": "temp.js"}
-    if language not in extensions:
-        return jsonify({"error": "هذه اللغة غير مدعومة حالياً"}), 400
-        
-    file_path = os.path.join(TEMP_DIR, extensions[language])
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(code_content)
-        
-    try:
-        raw_report = ""
-        # 1. تشغيل أدوات الفحص الساكن والمترجمات وجلب التقارير الجافة
-        if language == "python":
-            result = subprocess.run(
-                ["ruff", "check", "--output-format=json", file_path],
-                capture_output=True, text=True, timeout=10
-            )
-            findings = json.loads(result.stdout) if result.stdout.strip() else []
-            if findings:
-                raw_report = "\n".join(
-                    f"السطر {f.get('location',{}).get('row','?')}: [{f.get('code','')}] {f.get('message','')}"
-                    for f in findings
-                )
-            else:
-                raw_report = "كود بايثون سليم نحوياً."
-        elif language in ["c", "cpp"]:
-            compiler = "gcc" if language == "c" else "g++"
-            result = subprocess.run([compiler, "-fsyntax-only", file_path], capture_output=True, text=True, timeout=5)
-            raw_report = result.stderr if result.stderr else "الكود متوافق مع معايير المترجم العالَمية."
-        elif language == "javascript":
-            # لا توجد أداة فحص ساكن لـ JavaScript على الخادم حالياً، والكود لا يُشغَّل هنا أبداً
-            raw_report = "لا توجد أداة فحص ساكن لـ JavaScript حالياً؛ التحليل يعتمد على الذكاء الاصطناعي فقط."
-
-        # 2. استدعاء المعلم الذكي (AI) لتحليل الأخطاء والخدمات المتقدمة
-        prompt = f"""
-        أنت محرك فحص أكواد احترافي ومعلم برمجية لطلاب الجامعات.
-        قم بتحليل الكود التالي المكتوب بلغة ({language}) بناءً على تقرير الخطأ الجاف هذا: "{raw_report}".
-        
-        أريدك أن تعيد لي الإجابة بتنسيق JSON حصراً وبالمفاتيح التالية باللغة العربية:
-        {{
-            "error_title": "عنوان الخطأ بشكل مبسط ومفهوم للطالب",
-            "explanation": "شرح حقيقي وتفصيلي ومبسط جداً للسبب الذي أدى للخطأ برمجياً وماذا يحدث في الخلفية",
-            "solution_steps": "خطوات عملية محددة (1، 2، 3) ليقوم الطالب بتطبيقها لإصلاح كوده",
-            "security_check": "فحص أمان سريع للكود (هل توجد ثغرات أو ضعف أمني؟)",
-            "technical_debt": "حساب الديون التقنية (مثلاً: الوقت المقدر للإصلاح بالدقائق، ونسبة جودة كتابة الكود من 10)",
-            "fixed_code": "الكود كاملاً بعد إصلاحه وتنسيقه بشكل مثالي ليراه الطالب كنموذج يحتذى به"
-        }}
-        
-        الكود البرمجي للطالب:
-        \"\"\"
-        {code_content}
-        \"\"\"
-        """
-        
-        text = _call_ai_chain([{"role": "user", "content": prompt}])
-        if not text:
-            return jsonify({
-                "raw_result": raw_report,
-                "error": "مفتاح الذكاء الاصطناعي غير مكوَّن على الخادم. يُعرض فحص الكود الساكن فقط.",
-                "fallback": True
-            })
-
-        processed_data = _parse_ai_json(text, defaults={
-            "error_title": "تحليل حالة الكود",
-            "solution_steps": "",
-            "security_check": "",
-            "technical_debt": "غير متاح",
-            "fixed_code": None,
-        })
-
-        return jsonify({
-            "raw_result": raw_report,
-            "ai_analysis": processed_data
-        })
-
-    except Exception as e:
-        err_str = str(e)
-        if "401" in err_str or "credentials" in err_str.lower() or "API_KEY" in err_str:
-            err_msg = "مفتاح الذكاء الاصطناعي غير صحيح أو غير مكوَّن على الخادم."
-        else:
-            err_msg = "تعذّر الاتصال بخدمة الذكاء الاصطناعي، يُعرض فحص الكود الساكن فقط."
-        return jsonify({
-            "raw_result": raw_report if 'raw_report' in locals() else "حدث خطأ أثناء معالجة الملف",
-            "error": err_msg,
-            "fallback": True
-        }), 200
-    finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
 
 @app.route('/judge0-status')
 def judge0_status():
