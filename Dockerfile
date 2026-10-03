@@ -4,10 +4,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # gcc/g++ لفحص صياغة C/C++ فقط (-fsyntax-only)، وcppcheck لفحص الجودة الساكن
-# nodejs/npm لتحميل Monaco Editor أثناء بناء الصورة (لا يُستخدم في وقت التشغيل)
+# nodejs/npm لتحميل Monaco Editor وESLint أثناء بناء الصورة (ESLint يُستخدم وقت التشغيل لفحص JS فقط)
+# default-jdk-headless لفحص صياغة Java عبر javac -Xlint (فحص فقط، بدون تشغيل الكود)
 # لا شيء هنا يُشغّل كود الطالب فعلياً
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc g++ cppcheck nodejs npm \
+    && apt-get install -y --no-install-recommends gcc g++ cppcheck nodejs npm default-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
