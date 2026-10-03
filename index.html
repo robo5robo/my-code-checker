@@ -45,6 +45,26 @@
                  url(/fonts/ibm-plex-sans-arabic-latin-700-normal.woff) format('woff');
             unicode-range: U+0000-00FF,U+2000-206F;
         }
+        /* وزن 600 — يستخدمه labels وhints وbadges في الواجهة؛ بدونه يُركِّب المتصفح
+           وزناً مزيَّفاً (synthetic bold) بدل وزن Plex الحقيقي */
+        @font-face {
+            font-family: 'IBM Plex Sans Arabic';
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url(/fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2) format('woff2'),
+                 url(/fonts/ibm-plex-sans-arabic-arabic-600-normal.woff) format('woff');
+            unicode-range: U+0600-06FF,U+0750-077F,U+200C-200E,U+FB50-FDFF,U+FE70-FEFC;
+        }
+        @font-face {
+            font-family: 'IBM Plex Sans Arabic';
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url(/fonts/ibm-plex-sans-arabic-latin-600-normal.woff2) format('woff2'),
+                 url(/fonts/ibm-plex-sans-arabic-latin-600-normal.woff) format('woff');
+            unicode-range: U+0000-00FF,U+2000-206F;
+        }
         /* ====================================================================
            هوية بصرية موحّدة — لوحتان (فاتحة/داكنة) بنفس الهوية بعكس السطوع.
            مبدأ التصميم: لا تدرّج زخرفي، لا ظل رمادي موحّد على كل بطاقة، لا
@@ -209,7 +229,7 @@
         .fixed-code-card pre { max-height: 300px; overflow-y: auto; }
         .fixed-code-buttons { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
         /* أزرار أداة ثانوية صغيرة (نسخ/استخدام) — ليست أزرار إجراء رئيسية، فتصميمها محايد وأصغر */
-        .btn-copy-fix, .btn-use-fix { width: auto; flex: 0 0 auto; padding: 6px 14px; font-size: 13px; font-weight: 600; margin-top: 0; background: #e2e8f0; color: #1b2433; border: 1px solid #94a3b8; box-shadow: none; }
+        .btn-copy-fix, .btn-use-fix { width: auto; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; font-size: 12px; font-weight: 600; margin-top: 0; background: #e2e8f0; color: #1b2433; border: 1px solid #94a3b8; box-shadow: none; }
         :root[data-theme="dark"] .btn-copy-fix, :root[data-theme="dark"] .btn-use-fix { background: rgba(51, 65, 85, 0.6); color: #e8ecf2; border: 1px solid #64748b; }
         .btn-copy-fix:hover, .btn-use-fix:hover { filter: brightness(0.95); background: #cbd5e1; }
         :root[data-theme="dark"] .btn-copy-fix:hover, :root[data-theme="dark"] .btn-use-fix:hover { background: rgba(71, 85, 105, 0.8); }
@@ -257,10 +277,9 @@
         .ai-content { line-height: 1.9; white-space: pre-wrap; color: var(--text); }
         .ai-loading { color: var(--scan); font-style: italic; }
 
-        /* نصائح التحسين */
+        /* نصائح التحسين — نفس قالب .fix-tip تماماً: خلفية محايدة + حدّ شفاف بلون القسم، بلا أيقونة */
         .improvements-list { list-style: none; margin: 10px 0 0; padding: 0; }
-        .improvements-list li { padding: 8px 12px; margin-bottom: 6px; background: var(--surface-2); border-radius: 6px; line-height: 1.5; }
-        .improvements-list li::before { content: "💡 "; }
+        .improvements-list li { padding: 8px 12px; margin-bottom: 6px; background: var(--msg-bg); color: var(--text); border-right: 3px solid color-mix(in srgb, var(--scan) 55%, transparent); border-radius: 6px; line-height: 1.5; }
 
         /* فئة خامسة اختيارية: الأداء والكفاءة — بنفسجي فاتح هادئ، تختلف عمداً عن ألوان الفحص الذكي
            (برتقالي) لأنها ملاحظة تعليمية وليست مشكلة فعلية */
@@ -399,11 +418,11 @@
             <div id="resultsCard" class="service-card results-card">
                 <!-- 1. ملخص سريع -->
                 <div class="sub-section">
-                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> ملخص الفحص الذكي</div>
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg> ملخص الفحص الذكي</div>
                     <div id="analyzeSummary" class="summary-line"></div>
                     <div class="assessment-grid">
                         <div class="assessment-tile">
-                            <div class="tile-label">✅ تقييم الجودة</div>
+                            <div class="tile-label"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> تقييم الجودة</div>
                             <div class="tile-value" id="scoreGrade">-</div>
                         </div>
                         <div class="assessment-tile">
@@ -444,18 +463,18 @@
                 <!-- 5. الكود المصحَّح -->
                 <div id="fixedCodeCard" class="sub-section">
                     <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> الكود المصحَّح</div>
-                    <div id="fixedCodeOkMsg" class="ok-message" style="display:none;">✅ الكود جيد كما هو، لا حاجة لأي تعديل.</div>
+                    <div id="fixedCodeOkMsg" class="ok-message" style="display:none; border-right-color: color-mix(in srgb, var(--scan) 55%, transparent);">الكود جيد كما هو، لا حاجة لأي تعديل.</div>
                     <pre id="fixedCodePre"><code id="fixedCodeOutput" dir="ltr" style="text-align:left; font-family: Consolas,'Courier New',monospace; font-size:13px;"></code></pre>
                     <div id="fixedCodeButtons" class="fixed-code-buttons">
-                        <button class="btn-copy-fix" id="copyFixedCodeBtn">📋 نسخ الكود المصحَّح</button>
-                        <button class="btn-use-fix" id="useFixedCodeBtn">⬅️ استخدم هذا الكود في المحرر</button>
+                        <button class="btn-copy-fix" id="copyFixedCodeBtn"><svg class="icon icon-sm" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> <span id="copyFixedCodeBtnLabel">نسخ الكود</span></button>
+                        <button class="btn-use-fix" id="useFixedCodeBtn"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 20v-7a4 4 0 0 0-4-4H4"/><path d="M9 14 4 9l5-5"/></svg> استخدم في المحرر</button>
                     </div>
                 </div>
 
                 <!-- 6. نصائح التحسين -->
                 <div id="improvementsCard" class="sub-section">
                     <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> نصائح التحسين</div>
-                    <div id="improvementsOkMsg" class="ok-message" style="display:none;">✅ لا توجد نصائح إضافية حالياً، أسلوب الكود جيد.</div>
+                    <div id="improvementsOkMsg" class="ok-message" style="display:none; border-right-color: color-mix(in srgb, var(--scan) 55%, transparent);">لا توجد نصائح إضافية حالياً، أسلوب الكود جيد.</div>
                     <ul id="improvementsList" class="improvements-list"></ul>
                     <div id="fixTip" class="fix-tip" style="display:none;"></div>
                 </div>
@@ -1021,6 +1040,13 @@
         const issuesList = document.getElementById("issuesList");
         const analyzeSummary = document.getElementById("analyzeSummary");
 
+        // إزالة دفاعية لأي إيموجي يُضيفه نموذج الذكاء الاصطناعي نفسه في بداية نصه الحرّ —
+        // المنصة لا تريد أي أيقونة داخل صناديق الإجابات، بصرف النظر عمّا يُعيده النموذج
+        function stripLeadingEmoji(text) {
+            if (!text) return text;
+            return text.replace(/^[\p{Extended_Pictographic}‍️]+\s*/u, "");
+        }
+
         function jumpToLine(line) {
             if (!editor) return;
             editor.revealLineInCenter(line);
@@ -1105,11 +1131,11 @@
             const improvementsOkMsg = document.getElementById("improvementsOkMsg");
             if (ai && typeof ai === "object" && ai.explanation) {
                 aiCard.style.display = "block";
-                aiContent.textContent = ai.explanation;
+                aiContent.textContent = stripLeadingEmoji(ai.explanation);
                 if (ai.security_notes && !secIssues.length) {
                     securityOk.classList.remove("active");
                     const li = document.createElement("li");
-                    li.textContent = ai.security_notes;
+                    li.textContent = stripLeadingEmoji(ai.security_notes);
                     securityList.appendChild(li);
                 }
                 // 5. الكود المصحَّح — يظهر دوماً: الكود نفسه، أو رسالة إيجابية إن كان الكود جيداً أصلاً
@@ -1130,11 +1156,11 @@
                 const improvements = Array.isArray(ai.improvements) ? ai.improvements : [];
                 improvements.forEach((imp) => {
                     const li = document.createElement("li");
-                    li.textContent = imp;
+                    li.textContent = stripLeadingEmoji(imp);
                     improvementsList.appendChild(li);
                 });
                 if (ai.tip) {
-                    fixTipEl.textContent = "🎨 " + ai.tip;
+                    fixTipEl.textContent = stripLeadingEmoji(ai.tip);
                     fixTipEl.style.display = "block";
                 } else {
                     fixTipEl.style.display = "none";
@@ -1168,7 +1194,7 @@
                     performanceList.appendChild(li);
                 });
                 if (ai && ai.performance_note) {
-                    performanceNoteText.textContent = ai.performance_note;
+                    performanceNoteText.textContent = stripLeadingEmoji(ai.performance_note);
                     performanceNoteText.style.display = "block";
                 } else {
                     performanceNoteText.style.display = "none";
@@ -1225,9 +1251,9 @@
         document.getElementById("copyFixedCodeBtn").addEventListener("click", () => {
             const code = document.getElementById("fixedCodeOutput").textContent;
             navigator.clipboard.writeText(code).then(() => {
-                const btn = document.getElementById("copyFixedCodeBtn");
-                btn.textContent = "✅ تم النسخ!";
-                setTimeout(() => { btn.textContent = "📋 نسخ الكود المصحَّح"; }, 2000);
+                const label = document.getElementById("copyFixedCodeBtnLabel");
+                label.textContent = "تم النسخ";
+                setTimeout(() => { label.textContent = "نسخ الكود"; }, 2000);
             }).catch(() => alert("تعذّر النسخ — حاول يدوياً"));
         });
         document.getElementById("useFixedCodeBtn").addEventListener("click", () => {
@@ -1329,7 +1355,7 @@
                 const sectionsList = document.getElementById("sectionsList");
                 sectionsList.innerHTML = "";
                 if (ai && ai.overview) {
-                    overviewBox.textContent = ai.overview;
+                    overviewBox.textContent = stripLeadingEmoji(ai.overview);
                     const sections = ai.sections || [];
                     if (!sections.length) {
                         const note = document.createElement("div");
@@ -1354,7 +1380,7 @@
                             head.appendChild(lineBtn);
                         }
                         const p = document.createElement("p");
-                        p.textContent = sec.explanation || "";
+                        p.textContent = stripLeadingEmoji(sec.explanation) || "";
                         div.appendChild(head);
                         div.appendChild(p);
                         sectionsList.appendChild(div);
@@ -1363,7 +1389,7 @@
                     overviewBox.textContent = "تعذّر الحصول على شرح من الذكاء الاصطناعي حالياً — يمكنك تصفح خريطة البنية أعلاه فقط.";
                     const note = document.createElement("div");
                     note.className = "ok-message";
-                    note.style.borderRightColor = "color-mix(in srgb, var(--warn-text) 55%, transparent)";
+                    note.style.borderRightColor = "color-mix(in srgb, var(--insight) 55%, transparent)";
                     note.textContent = "⚠️ لا تتوفر حالياً خدمة شرح الأجزاء بالذكاء الاصطناعي.";
                     sectionsList.appendChild(note);
                 }
