@@ -1152,7 +1152,7 @@
                     li.textContent = stripLeadingEmoji(ai.security_notes);
                     securityList.appendChild(li);
                 }
-                // 5. الكود المصحَّح — يظهر دوماً: الكود نفسه، أو رسالة إيجابية إن كان الكود جيداً أصلاً
+                // 5. الكود المصحَّح — يظهر دوماً: الكود نفسه، أو رسالة واضحة عند تعذّر توليده
                 fixedCodeCard.style.display = "block";
                 if (ai.fixed_code) {
                     document.getElementById("fixedCodeOutput").textContent = ai.fixed_code;
@@ -1162,6 +1162,10 @@
                 } else {
                     fixedCodePre.style.display = "none";
                     fixedCodeButtons.style.display = "none";
+                    // تمييز فشل تقني فعلي عن "الكود جيد كما هو" — لا نُظهر ادّعاءً خاطئاً بالسلامة
+                    fixedCodeOkMsg.textContent = ai.fixed_code_unavailable
+                        ? "تعذّر الحصول على الكود المصحَّح من الذكاء الاصطناعي حالياً، حاول الفحص مرة أخرى بعد قليل."
+                        : "الكود جيد كما هو، لا حاجة لأي تعديل.";
                     fixedCodeOkMsg.style.display = "flex";
                 }
                 // 6. نصائح التحسين — تظهر دوماً: النصائح، أو رسالة إيجابية إن لم توجد

@@ -677,11 +677,18 @@ def get_ai_explanation(language, errors, score, complexity, code="", security_is
 
     code_prompt = (
         f"أصلح كل الأخطاء في الكود التالي المكتوب بلغة {language}. "
-        "أعد الكود المصحَّح فقط، كاملاً ومنسَّقاً، بدون أي شرح أو نص إضافي خارج الكود نفسه:\n\n"
+        "إن كان الكود صحيحاً تماماً ولا يحتاج أي تعديل، أعده كما هو دون أي تغيير. "
+        "أعد الكود فقط، كاملاً ومنسَّقاً، بدون أي شرح أو نص إضافي خارج الكود نفسه:\n\n"
         f"```\n{code[:1500]}\n```"
     )
     code_result = call_ai_model("code", [{"role": "user", "content": code_prompt}], max_tokens=1200)
-    result["fixed_code"] = _extract_code_block(code_result) if code_result else None
+    if code_result:
+        result["fixed_code"] = _extract_code_block(code_result)
+    else:
+        # فشل تقني فعلي في الحصول على الكود المصحَّح (لا مفتاح مُعدّ/حدّ استخدام/مهلة) —
+        # يجب تمييزه عن "الكود جيد كما هو" حتى لا تُظهر الواجهة ادّعاءً خاطئاً بالسلامة
+        result["fixed_code"] = None
+        result["fixed_code_unavailable"] = True
     return result
 
 
