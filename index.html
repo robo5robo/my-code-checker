@@ -198,6 +198,9 @@
 
         /* رسالة إيجابية هادئة عند عدم وجود نتائج بدل قسم فارغ */
         .ok-message { background: var(--msg-bg); color: var(--text); border-right: 3px solid color-mix(in srgb, var(--run) 55%, transparent); border-radius: 8px; padding: 10px 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        /* أبعاد مضغوطة موحَّدة — نفس قياسات "نصائح التحسين" (القالب المرجعي) لكل صناديق
+           إجابات قسم الفحص (عدا الملخص السريع والكود المصحَّح، ببنية مختلفة أصلاً) */
+        .ok-message-compact { padding: 8px 12px; border-radius: 6px; border-right-width: 3px; }
 
         /* مؤشر تحميل أثناء تشغيل الكود */
         .run-loading { padding: 22px 14px; text-align: center; transition: opacity .3s ease; }
@@ -247,7 +250,7 @@
         .issues-list { list-style: none; margin: 0; padding: 0; }
         /* صندوق موحَّد بلون القسم (برتقالي) لكل عناصر "فحص ذكي" — شارة sev-tag الصغيرة
            وحدها تبقى حمراء/صفراء للتمييز السريع بين خطأ وتحذير */
-        .issues-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 6px; background: var(--msg-bg); color: var(--text); border-right: 4px solid color-mix(in srgb, var(--scan) 55%, transparent); }
+        .issues-list li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; background: var(--msg-bg); color: var(--text); border-right: 3px solid color-mix(in srgb, var(--scan) 55%, transparent); }
         .issue-line { width: auto; flex: 0 0 auto; background: var(--surface); color: var(--brand); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-family: monospace; font-weight: bold; cursor: pointer; white-space: nowrap; }
         .issue-line:hover { background: var(--border); }
         /* min-width:0 ضروري كي يقبل هذا العنصر الانكماش داخل flex بدل دفع فقاعة السطر بعرضه الكامل */
@@ -271,10 +274,10 @@
         .security-ok { display: none; }
         .security-ok.active { display: flex; }
         .security-list { list-style: none; margin: 15px 0 0; padding: 0; }
-        .security-list li { background: var(--msg-bg); color: var(--text); border-right: 4px solid color-mix(in srgb, var(--scan) 55%, transparent); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; line-height: 1.5; }
+        .security-list li { background: var(--msg-bg); color: var(--text); border-right: 3px solid color-mix(in srgb, var(--scan) 55%, transparent); border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; line-height: 1.5; }
 
         /* بطاقة شرح المساعد الذكي */
-        .ai-content { line-height: 1.9; white-space: pre-wrap; color: var(--text); background: var(--msg-bg); border-right: 4px solid color-mix(in srgb, var(--scan) 55%, transparent); border-radius: 8px; padding: 10px 14px; }
+        .ai-content { line-height: 1.5; white-space: pre-wrap; color: var(--text); background: var(--msg-bg); border-right: 3px solid color-mix(in srgb, var(--scan) 55%, transparent); border-radius: 6px; padding: 8px 12px; }
         .ai-loading { color: var(--scan); font-style: italic; }
 
         /* نصائح التحسين — نفس قالب .fix-tip تماماً: خلفية محايدة + حدّ شفاف بلون القسم، بلا أيقونة */
@@ -441,7 +444,6 @@
                         <div class="assessment-tile">
                             <div class="tile-label"><svg class="icon" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></svg> أولوية الإصلاح</div>
                             <div class="tile-value" id="fixPriorityValue" style="font-size: 16px;">-</div>
-                            <div class="tile-sub">مدى إلحاح إصلاح هذا الكود قبل غيره</div>
                         </div>
                     </div>
                 </div>
@@ -455,7 +457,7 @@
                 <!-- 3. الفحص الأمني -->
                 <div class="sub-section">
                     <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg> الفحص الأمني</div>
-                    <div id="securityOk" class="ok-message security-ok" style="border-right-color: color-mix(in srgb, var(--scan) 55%, transparent);"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> لا توجد مخاطر أمنية واضحة</div>
+                    <div id="securityOk" class="ok-message ok-message-compact security-ok" style="border-right-color: color-mix(in srgb, var(--scan) 55%, transparent);"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> لا توجد مخاطر أمنية واضحة</div>
                     <ul id="securityList" class="security-list"></ul>
                 </div>
 
@@ -1068,6 +1070,7 @@
 
             // 1. ملخص سريع
             analyzeSummary.textContent = data.summary || "";
+            analyzeSummary.style.display = data.summary ? "block" : "none";
             const grade = document.getElementById("scoreGrade");
             grade.textContent = `${data.complexity.score} (${data.score}/10)`;
             grade.className = "tile-value";
@@ -1082,6 +1085,12 @@
 
             // 2. قائمة الأخطاء والتحذيرات (الحرجة أولاً — السيرفر يرتبها مسبقاً)
             issuesList.innerHTML = "";
+            if (!(data.errors || []).length) {
+                const li = document.createElement("li");
+                li.className = "ok-message ok-message-compact";
+                li.innerHTML = ICON_CHECK_SVG + " لا توجد أخطاء أو تحذيرات في هذا الكود.";
+                issuesList.appendChild(li);
+            }
             (data.errors || []).forEach((issue) => {
                 const li = document.createElement("li");
                 li.className = "severity-" + (issue.severity === "error" ? "error" : "warning");
@@ -1360,6 +1369,19 @@
                 z: -1,
             }] : [];
 
+            // توسيط وتكبير تلقائي يعتمد على الصناديق الفعلية الموجودة فقط. ECharts مع
+            // layout:"none" يُكبِّر تلقائياً أي صندوق إحداثيات صغير ليملأ الحاوية، لذا
+            // عندما يحتوي الكود على عقدة أو عقدتين فقط (صندوق صغير) يظهر الرسم ممطوطاً
+            // وكأنه "مرفوع" — نعالج هذا بتصغير zoom تناسبياً مع حجم الصندوق الفعلي
+            // مقارنةً بالصندوق المرجعي الكامل (كل الصفوف الأربعة)، بدل تكبيره
+            const usedYs = positioned.map((p) => p.y);
+            const minY = Math.min(...usedYs) - 40;
+            const maxY = Math.max(...usedYs) + 40;
+            const boxHeight = Math.max(maxY - minY, 1);
+            const referenceHeight = (rowY.imports - rowY.file) + 80;
+            const zoom = Math.min(1, Math.max(0.4, boxHeight / referenceHeight));
+            const centerY = (minY + maxY) / 2;
+
             structureChart.setOption({
                 backgroundColor: "transparent",
                 tooltip: {},
@@ -1376,8 +1398,8 @@
                     lineStyle: { color: colors.edge, width: 1.5, curveness: 0.05 },
                     data: nodes,
                     links: edges,
-                    zoom: 0.9,
-                    center: [width / 2, (rowY.file + rowY.imports) / 2],
+                    zoom: zoom,
+                    center: [width / 2, centerY],
                 }],
             }, true);
 
