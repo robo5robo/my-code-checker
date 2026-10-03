@@ -516,16 +516,16 @@ def compute_summary(errors):
     return "تم العثور على " + " و".join(parts)
 
 
-def compute_technical_debt(errors, complexity_value):
-    """تقدير تقريبي مستوحى من فكرة SQALE: دقائق لكل خطأ/تحذير + عامل للتعقيد الزائد."""
+def compute_fix_priority(errors, complexity_value):
+    """أولوية إصلاح تقريبية للطالب: عالية عند وجود أخطاء فعلية، متوسطة عند
+    وجود تحذيرات فقط أو تعقيد زائد، ومنخفضة غير ذلك."""
     n_err = sum(1 for e in errors if e["severity"] == "error")
     n_warn = sum(1 for e in errors if e["severity"] == "warning")
-    minutes = n_err * 3 + n_warn * 1 + max(0, round(complexity_value) - 5)
-    if minutes == 0: return "0 دقيقة"
-    if minutes == 1: return "دقيقة واحدة"
-    if minutes == 2: return "دقيقتان"
-    if minutes <= 10: return f"{minutes} دقائق"
-    return f"{minutes} دقيقة"
+    if n_err:
+        return {"label": "عالية", "level": "high"}
+    if n_warn or complexity_value > 7:
+        return {"label": "متوسطة", "level": "medium"}
+    return {"label": "منخفضة", "level": "low"}
 
 
 def _call_openai_compat(endpoint, api_key, model, messages, max_tokens=700):
@@ -758,7 +758,7 @@ def analyze():
             "score": score,
             "summary": compute_summary(errors),
             "complexity": complexity_obj,
-            "technical_debt": compute_technical_debt(errors, complexity_value),
+            "fix_priority": compute_fix_priority(errors, complexity_value),
             "lines": count_lines(code, language),
             "security_issues": security_issues,
             "performance_notes": performance_notes,
