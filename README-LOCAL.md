@@ -18,15 +18,32 @@ cd C:\proj_ise\my-code-checker
 
 ### 2. أضف مفاتيح الذكاء الاصطناعي
 
-افتح ملف `.env.local` وضع مفاتيحك (مفتاح Groq كافٍ للبدء):
+افتح ملف `.env.local` وضع مفاتيحك:
 
 ```
-GROQ_API_KEY=gsk_...مفتاحك_من_console.groq.com
-CEREBRAS_API_KEY=          # اختياري
-GEMINI_API_KEY=            # اختياري
+TEXT_MODEL_PROVIDER=groq
+TEXT_MODEL_NAME=openai/gpt-oss-120b
+TEXT_MODEL_API_KEY=gsk_...مفتاحك_من_console.groq.com
+
+CODE_MODEL_PROVIDER=groq
+CODE_MODEL_NAME=qwen/qwen3-32b
+CODE_MODEL_API_KEY=gsk_...نفس_المفتاح_أو_مفتاح_آخر
+
+CEREBRAS_API_KEY=          # اختياري (احتياطي عام)
+GEMINI_API_KEY=            # اختياري (احتياطي عام)
 ```
 
 > إذا تركت الكل فارغاً تعمل المنصة بدون التحليل بالذكاء الاصطناعي فقط.
+
+#### تغيير النموذج مستقبلاً
+
+المنصة تستخدم **نموذجين منفصلين**:
+- `TEXT_MODEL_*`: لشرح الأخطاء والتحليل التعليمي (زر "فحص ذكي" وزر "تحليل ذكي").
+- `CODE_MODEL_*`: لتوليد الكود المصحَّح فقط (داخل زر "فحص ذكي").
+
+لتغيير أي نموذج، عدّل `*_NAME` و`*_API_KEY` في `.env.local` فقط — بدون لمس `app.py`. المزوّدون المدعومون حالياً في `*_PROVIDER`: `groq` و`cerebras` (كلاهما متوافق مع OpenAI API). لإضافة مزوّد جديد لاحقاً، أضف سطراً واحداً في `PROVIDER_ENDPOINTS` داخل `app.py`.
+
+> إن تركت `TEXT_MODEL_*` أو `CODE_MODEL_*` فارغة، تتراجع المنصة تلقائياً لسلسلة `GROQ_API_KEY ← CEREBRAS_API_KEY ← CLAUDE_API_KEY ← GEMINI_API_KEY` القديمة — لا كسر لأي إعداد سابق.
 
 ### 3. شغّل المنصة
 

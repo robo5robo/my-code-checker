@@ -90,6 +90,123 @@ def scan_security_patterns(code):
     return findings
 
 
+# مكتبات تحتاج وصولاً لجهاز فعلي (كاميرا/حساس/منفذ تسلسلي) لا تتوفر في أي بيئة تشغيل سحابية
+# ملاحظة: الكود لا يُشغَّل على الخادم أصلاً (Pyodide في متصفح الطالب فقط) — هذا الفحص يمنع
+# محاولة تشغيل فاشلة في المتصفح أيضاً، لأن هذه المكتبات غير متاحة في Pyodide كذلك.
+# ميزة مستقبلية: دعم WebSerial/WebUSB للتواصل مع Arduino/micro:bit من المتصفح مباشرة،
+# بدون تشغيل الكود الخاص بالجهاز على الخادم. تُضاف في مرحلة لاحقة عند الحاجة الفعلية من الطلاب.
+HARDWARE_IMPORT_NAMES = {"cv2", "picamera", "RPi.GPIO", "RPi", "pyaudio", "serial"}
+
+
+def detect_hardware_imports(code):
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in HARDWARE_IMPORT_NAMES or alias.name.split(".")[0] in HARDWARE_IMPORT_NAMES:
+                    return True
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and (node.module in HARDWARE_IMPORT_NAMES or node.module.split(".")[0] in HARDWARE_IMPORT_NAMES):
+                return True
+    return False
+
+
+NETWORK_CALL_NAMES = {"requests.get", "requests.post", "requests.put", "requests.delete", "requests.request", "urlopen"}
+
+
+def analyze_performance_python(code):
+    """فئة اختيارية خامسة (أداء وكفاءة) — ملاحظات تعليمية وليست أخطاء. تظهر فقط إن انطبقت فعلاً.
+    TODO: لم تُنفَّذ بعد لبقية اللغات (Go, Rust, PHP, Ruby, C#, Kotlin, Swift, TypeScript, Bash, C/C++, Java) —
+    تحتاج محلل بنية مخصص لكل لغة، أو الانتقال لأداة عامة متعددة اللغات (مثل tree-sitter) لاحقاً."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+
+    notes = []
+    parent_map = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parent_map[child] = node
+
+    def is_nested_in_loop(node):
+        p = parent_map.get(node)
+        while p is not None:
+            if isinstance(p, (ast.For, ast.While)):
+                return True
+            p = parent_map.get(p)
+        return False
+
+    def loop_depth(node, depth):
+        max_d = depth
+        for child in ast.iter_child_nodes(node):
+            d = depth + 1 if isinstance(child, (ast.For, ast.While)) else depth
+            max_d = max(max_d, loop_depth(child, d))
+        return max_d
+
+    def call_name(call_node):
+        f = call_node.func
+        if isinstance(f, ast.Attribute):
+            base = f.value.id if isinstance(f.value, ast.Name) else None
+            return f"{base}.{f.attr}" if base else f.attr
+        if isinstance(f, ast.Name):
+            return f.id
+        return None
+
+    # 1) حلقات متداخلة بعمق 3+ (فقط عند أعلى حلقة في السلسلة، تفادياً للتكرار)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While)) and not is_nested_in_loop(node):
+            depth = loop_depth(node, 1)
+            if depth >= 3:
+                notes.append({
+                    "line": node.lineno,
+                    "message": f"حلقات متداخلة بعمق {depth} مستويات — قد يبطئ الكود كثيراً مع زيادة حجم البيانات، فكّر في تحسين الخوارزمية (هيكل بيانات أنسب أو تقليل التكرار).",
+                })
+
+    # 2) استدعاء شبكة (requests/urlopen) داخل حلقة
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.While)) and not is_nested_in_loop(node):
+            for child in ast.walk(node):
+                if isinstance(child, ast.Call):
+                    name = call_name(child)
+                    if name in NETWORK_CALL_NAMES:
+                        notes.append({
+                            "line": child.lineno,
+                            "message": "استدعاء شبكة (requests) داخل حلقة يُبطئ التنفيذ لأن كل طلب ينتظر انتهاء السابق؛ مفهوم asyncio/aiohttp يسمح بإرسال عدة طلبات بالتوازي (موضوع متقدم يستحق الاستكشاف لاحقاً).",
+                        })
+                        break
+
+    # 3) دالة مستقلة تُستدعى بالتسلسل أكثر من 5 مرات متتالية
+    def check_sequential(body):
+        count, last_name = 1, None
+        for stmt in body:
+            call = None
+            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+                call = stmt.value
+            elif isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call):
+                call = stmt.value
+            name = call_name(call) if call else None
+            if name and name == last_name:
+                count += 1
+                if count == 6:
+                    notes.append({
+                        "line": stmt.lineno,
+                        "message": f"الدالة '{name}' استُدعيت أكثر من 5 مرات متتالية — إن كانت الاستدعاءات مستقلة عن بعضها، يمكن تسريعها بـ concurrent.futures أو multiprocessing لتشغيلها بالتوازي بدل التسلسل.",
+                    })
+            else:
+                count, last_name = 1, name
+
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(body, list):
+            check_sequential(body)
+
+    return notes
+
+
 def analyze_generic_basic(code):
     """فحص نصي أساسي للغات التي لا تملك أداة فحص مثبّتة بعد (Go, Rust, PHP, Ruby, C#, Kotlin, Swift, TypeScript, Bash).
     يتحقق فقط من توازن الأقواس. TODO: استبداله لاحقاً بأداة فحص مخصصة لكل لغة (مثل golangci-lint، clippy، phpstan...)."""
@@ -488,32 +605,77 @@ def _call_ai_chain(messages, max_tokens=700):
     return None
 
 
-def get_ai_explanation(language, errors, score, complexity, code="", security_issues=None):
-    """شرح موحّد بالذكاء الاصطناعي لكل فئات الفحص: أخطاء، أمان، أسلوب، تعقيد. Groq ← Cerebras ← Claude ← Gemini."""
+# نقطة توسعة: أضف هنا endpoint أي مزوّد OpenAI-compatible جديد (مثل fireworks، together...)
+PROVIDER_ENDPOINTS = {
+    "groq": "https://api.groq.com/openai/v1/chat/completions",
+    "cerebras": "https://api.cerebras.ai/v1/chat/completions",
+}
+
+
+def call_ai_model(role, messages, max_tokens=700):
+    """نموذج مخصَّص حسب الدور: role='text' لشرح/تحليل تعليمي، role='code' لتوليد كود فقط.
+    يقرأ {ROLE}_MODEL_PROVIDER / _NAME / _API_KEY من البيئة. عند غياب أي منها أو فشل
+    الاستدعاء، يتراجع لسلسلة المزوّدين العامة _call_ai_chain() (توافق مع الإعداد القديم)."""
+    prefix = role.upper() + "_MODEL_"
+    provider = os.environ.get(prefix + "PROVIDER")
+    model_name = os.environ.get(prefix + "NAME")
+    api_key = os.environ.get(prefix + "API_KEY")
+
+    if provider and model_name and api_key:
+        endpoint = PROVIDER_ENDPOINTS.get(provider)
+        if endpoint:
+            try:
+                return _call_openai_compat(endpoint, api_key, model_name, messages, max_tokens)
+            except Exception:
+                pass
+
+    return _call_ai_chain(messages, max_tokens)
+
+
+def _extract_code_block(text):
+    """يستخرج الكود من رد قد يُحيطه AI بسياج Markdown ```lang ... ```، وإلا يُعيد النص كما هو."""
+    m = re.search(r'```[a-zA-Z0-9]*\n([\s\S]*?)```', text)
+    return m.group(1).strip() if m else text.strip()
+
+
+def get_ai_explanation(language, errors, score, complexity, code="", security_issues=None, performance_notes=None):
+    """شرح + كود مصحَّح عبر نموذجين منفصلين: TEXT_MODEL للشرح والتحليل، CODE_MODEL لتوليد fixed_code فقط."""
     n_err = sum(1 for e in errors if e["severity"] == "error")
     n_warn = sum(1 for e in errors if e["severity"] == "warning")
     errors_text = "\n".join(f"- سطر {e['line']}: {e['message']}" for e in errors[:6]) if errors else "لا توجد أخطاء"
     security_text = "\n".join(f"- {s}" for s in security_issues) if security_issues else "لا توجد ملاحظات أمان من الفحص الساكن"
+    performance_text = "\n".join(f"- سطر {p['line']}: {p['message']}" for p in performance_notes) if performance_notes else ""
 
-    prompt = (
+    text_prompt = (
         f"أنت مساعد تعليمي لطلاب البرمجة. فيما يلي كود بلغة {language} ونتائج فحصه الساكن:\n\n"
         f"الكود:\n```\n{code[:1200]}\n```\n\n"
         f"الأخطاء والتحذيرات ({n_err} خطأ، {n_warn} تحذير):\n{errors_text}\n\n"
         f"ملاحظات أمان أولية من الفحص الساكن:\n{security_text}\n\n"
-        "أعد ردك بصيغة JSON فقط بهذا الشكل (بدون أي نص خارج JSON):\n"
+        + (f"ملاحظات أداء أولية من الفحص الساكن:\n{performance_text}\n\n" if performance_text else "")
+        + "أعد ردك بصيغة JSON فقط بهذا الشكل (بدون أي نص خارج JSON، ولا تضع حقل كود هنا):\n"
         '{"explanation": "شرح المشكلة الرئيسية بجملتين", '
-        '"fixed_code": "الكود كاملاً بعد التصحيح", '
         '"security_notes": "ملاحظات أمان إضافية بجملة أو جملتين، أو null إن لم توجد مخاطر", '
         '"improvements": ["نصيحة تحسين 1", "نصيحة تحسين 2"], '
-        '"tip": "نصيحة أسلوب عامة"}'
+        '"tip": "نصيحة أسلوب عامة"'
+        + (', "performance_note": "تبدأ حرفياً بـ: 💡 ملاحظة تعليمية (ليست خطأ): ثم اشرح الملاحظة ببساطة ولطف (هذا ليس خطأ في الكود بل فرصة تعلّم لمفهوم متقدم)"' if performance_text else "")
+        + "}"
     )
-    messages = [{"role": "user", "content": prompt}]
-    text = _call_ai_chain(messages)
-    if text:
-        return _parse_ai_json(text, defaults={
-            "fixed_code": None, "security_notes": None, "improvements": [], "tip": None,
-        })
-    return None
+    text_result = call_ai_model("text", [{"role": "user", "content": text_prompt}])
+    if not text_result:
+        return None
+    defaults = {"security_notes": None, "improvements": [], "tip": None}
+    if performance_text:
+        defaults["performance_note"] = None
+    result = _parse_ai_json(text_result, defaults=defaults)
+
+    code_prompt = (
+        f"أصلح كل الأخطاء في الكود التالي المكتوب بلغة {language}. "
+        "أعد الكود المصحَّح فقط، كاملاً ومنسَّقاً، بدون أي شرح أو نص إضافي خارج الكود نفسه:\n\n"
+        f"```\n{code[:1500]}\n```"
+    )
+    code_result = call_ai_model("code", [{"role": "user", "content": code_prompt}], max_tokens=1200)
+    result["fixed_code"] = _extract_code_block(code_result) if code_result else None
+    return result
 
 
 @app.route('/analyze', methods=['POST'])
@@ -528,6 +690,13 @@ def analyze():
     language = data['language'].lower()
     if language not in ANALYZE_EXTENSIONS:
         return jsonify({"error": "هذه اللغة غير مدعومة حالياً للفحص"}), 400
+
+    if language == "python" and detect_hardware_imports(code):
+        return jsonify({
+            "blocked": True,
+            "message": "⚠️ هذا الكود يحتاج وصولاً لجهاز حقيقي (كاميرا/حساس) غير متاح في بيئة التشغيل السحابية. "
+                       "جرّب هذا الكود على جهازك الشخصي مباشرة، أو استخدم متصفحك للوصول لجهازك إن كان يدعم ذلك.",
+        })
 
     analyze_dir = os.path.join(TEMP_DIR, f"analyze_{uuid.uuid4().hex}")
     os.makedirs(analyze_dir, exist_ok=True)
@@ -562,6 +731,8 @@ def analyze():
         errors.sort(key=lambda e: 0 if e["severity"] == "error" else 1)
 
         security_issues = scan_security_patterns(code)
+        # فئة خامسة اختيارية: الأداء والكفاءة (Python فقط حالياً؛ TODO لبقية اللغات في analyze_performance_python)
+        performance_notes = analyze_performance_python(code) if language == "python" else []
 
         score = compute_score(errors)
         complexity_obj = {
@@ -570,7 +741,8 @@ def analyze():
             "label": _complexity_label(complexity_rank),
         }
         ai_explanation = get_ai_explanation(
-            language, errors, score, complexity_obj, code=code, security_issues=security_issues
+            language, errors, score, complexity_obj, code=code,
+            security_issues=security_issues, performance_notes=performance_notes,
         )
 
         return jsonify({
@@ -581,6 +753,7 @@ def analyze():
             "technical_debt": compute_technical_debt(errors, complexity_value),
             "lines": count_lines(code, language),
             "security_issues": security_issues,
+            "performance_notes": performance_notes,
             "ai_explanation": ai_explanation,
         })
     finally:
@@ -772,7 +945,7 @@ def get_ai_structure_explanation(language, code, structure):
         '"sections": [{"title": "اسم الجزء", "line": رقم_البداية, "explanation": "شرح مبسط"}]}'
     )
     messages = [{"role": "user", "content": prompt}]
-    text = _call_ai_chain(messages, max_tokens=900)
+    text = call_ai_model("text", messages, max_tokens=900)
     if text:
         return _parse_ai_json(text, defaults={"sections": []})
     return None
