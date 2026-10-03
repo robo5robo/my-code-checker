@@ -5,10 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # gcc/g++ لفحص صياغة C/C++ فقط (-fsyntax-only)، وcppcheck لفحص الجودة الساكن
 # nodejs/npm لتحميل Monaco Editor وESLint أثناء بناء الصورة (ESLint يُستخدم وقت التشغيل لفحص JS فقط)
-# default-jdk-headless لفحص صياغة Java عبر javac -Xlint (فحص فقط، بدون تشغيل الكود)
 # لا شيء هنا يُشغّل كود الطالب فعلياً
+# ملاحظة: لا نُثبّت JDK هنا عمداً — إضافته لهذا السطر سابقاً أبطلت كاش Docker
+# لكل الحزم معاً وتسبّبت بإعادة تحميل ضخمة. فحص Java يعمل تلقائياً بفحص
+# أساسي (توازن الأقواس) عبر analyze_generic_basic() في app.py عند غياب javac.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc g++ cppcheck nodejs npm default-jdk-headless \
+    && apt-get install -y --no-install-recommends gcc g++ cppcheck nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
