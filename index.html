@@ -6,6 +6,45 @@
     <title>CodeChecker - فاحص الأكواد</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
     <style>
+        /* خط IBM Plex Sans Arabic مثبَّت محلياً عبر npm (@fontsource)، يُقدَّم من Flask
+           عبر /fonts — بدون Google Fonts CDN. Fallback واضح لخط نظام عربي قياسي
+           أثناء التحميل أو إن تعذّر (system-ui, Tahoma). */
+        @font-face {
+            font-family: 'IBM Plex Sans Arabic';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url(/fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2) format('woff2'),
+                 url(/fonts/ibm-plex-sans-arabic-arabic-400-normal.woff) format('woff');
+            unicode-range: U+0600-06FF,U+0750-077F,U+200C-200E,U+FB50-FDFF,U+FE70-FEFC;
+        }
+        @font-face {
+            font-family: 'IBM Plex Sans Arabic';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url(/fonts/ibm-plex-sans-arabic-arabic-700-normal.woff2) format('woff2'),
+                 url(/fonts/ibm-plex-sans-arabic-arabic-700-normal.woff) format('woff');
+            unicode-range: U+0600-06FF,U+0750-077F,U+200C-200E,U+FB50-FDFF,U+FE70-FEFC;
+        }
+        @font-face {
+            font-family: 'IBM Plex Sans Arabic';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url(/fonts/ibm-plex-sans-arabic-latin-400-normal.woff2) format('woff2'),
+                 url(/fonts/ibm-plex-sans-arabic-latin-400-normal.woff) format('woff');
+            unicode-range: U+0000-00FF,U+2000-206F;
+        }
+        @font-face {
+            font-family: 'IBM Plex Sans Arabic';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url(/fonts/ibm-plex-sans-arabic-latin-700-normal.woff2) format('woff2'),
+                 url(/fonts/ibm-plex-sans-arabic-latin-700-normal.woff) format('woff');
+            unicode-range: U+0000-00FF,U+2000-206F;
+        }
         /* ====================================================================
            هوية بصرية موحّدة — لوحتان (فاتحة/داكنة) بنفس الهوية بعكس السطوع.
            مبدأ التصميم: لا تدرّج زخرفي، لا ظل رمادي موحّد على كل بطاقة، لا
@@ -44,6 +83,8 @@
             --warn-text: #8a5a06;
             --err-bg: #fbe2df;
             --err-text: #9c2a1d;
+            /* خلفية محايدة شفافة لكل "صناديق الإجابة" — بدل الخلفية المصبوغة بالكامل بلون الخيار */
+            --msg-bg: rgba(100, 116, 139, 0.06);
         }
         :root[data-theme="dark"] {
             --bg: #10151d;
@@ -74,12 +115,13 @@
             --warn-text: #e6b65c;
             --err-bg: #2e1816;
             --err-text: #f0988a;
+            --msg-bg: rgba(148, 163, 184, 0.08);
         }
         * { box-sizing: border-box; }
         /* overflow-x على body فقط (ليس html) — في RTL يُزيح html overflow-x:hidden نقطة التمرير ويخفي نص Monaco */
         html { max-width: 100%; }
         body { overflow-x: hidden; max-width: 100%; }
-        body { background-color: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0 16px 30px; transition: background-color .2s, color .2s; }
+        body { background-color: var(--bg); color: var(--text); font-family: 'IBM Plex Sans Arabic', system-ui, Tahoma, -apple-system, sans-serif; font-size: 14px; margin: 0; padding: 0 16px 30px; transition: background-color .2s, color .2s; }
         .container { max-width: 900px; margin: 0 auto; text-align: right; }
 
         /* الشريط العلوي */
@@ -97,12 +139,18 @@
         .main-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
         label { display: block; font-weight: 600; margin-bottom: 8px; color: var(--text-muted); }
         select { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; color: var(--text); font-size: 16px; }
-        button { width: 100%; background: var(--brand); color: #fff; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 0; transition: 0.2s; }
+        button { width: 100%; background: var(--brand); color: #fff; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 0; transition: background .2s, box-shadow .2s, transform .1s; }
         button:hover { background: var(--brand-strong); }
         button:disabled { opacity: 0.6; cursor: not-allowed; }
+        /* استجابة لمسية فورية عند الضغط الفعلي — على كل أزرار المنصة دون استثناء */
+        button:active:not(:disabled) { transform: scale(0.97); }
 
         /* محرر Monaco وأزرار التحكم */
-        #codeEditor { position: relative; height: 320px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; direction: ltr; unicode-bidi: isolate; text-align: left; }
+        /* حاوية محرر احترافية: شريط عنوان بالملف + ظل ناعم للعمق البصري (Elevation) */
+        .editor-shell { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+        :root[data-theme="dark"] .editor-shell { box-shadow: 0 6px 24px rgba(0,0,0,0.4); }
+        .editor-titlebar { padding: 7px 14px; font-family: Consolas, 'Courier New', monospace; font-size: 12px; color: var(--text-muted); background: var(--surface); border-bottom: 1px solid var(--border); }
+        #codeEditor { position: relative; height: 320px; overflow: hidden; direction: ltr; unicode-bidi: isolate; text-align: left; padding-top: 4px; }
         .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
         .actions button { flex: 1 1 140px; }
         #runBtn { background: var(--run); box-shadow: 0 0 18px var(--run-glow); }
@@ -129,7 +177,7 @@
         .results-card .card-title { color: var(--scan); }
 
         /* رسالة إيجابية هادئة عند عدم وجود نتائج بدل قسم فارغ */
-        .ok-message { background: color-mix(in srgb, var(--run) 14%, var(--surface-2)); color: var(--run-strong); border-right: 4px solid var(--run); border-radius: 8px; padding: 10px 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .ok-message { background: var(--msg-bg); color: var(--text); border-right: 3px solid color-mix(in srgb, var(--run) 55%, transparent); border-radius: 8px; padding: 10px 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
 
         /* مؤشر تحميل أثناء تشغيل الكود */
         .run-loading { padding: 22px 14px; text-align: center; transition: opacity .3s ease; }
@@ -160,12 +208,12 @@
         /* بطاقة الكود المصحَّح (ضمن نتائج الفحص الذكي — برتقالي) */
         .fixed-code-card pre { max-height: 300px; overflow-y: auto; }
         .fixed-code-buttons { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-        .fixed-code-buttons button { width: auto; flex: 0 0 auto; padding: 8px 16px; font-size: 14px; margin-top: 0; }
-        .btn-copy-fix { background: var(--scan); }
-        .btn-copy-fix:hover { filter: brightness(0.9); }
-        .btn-use-fix { background: var(--brand); }
-        .btn-use-fix:hover { background: var(--brand-strong); }
-        .fix-tip { color: var(--scan-strong); font-size: 13px; margin-top: 10px; padding: 8px 12px; background: var(--warn-bg); border-radius: 6px; border-right: 3px solid var(--scan); }
+        /* أزرار أداة ثانوية صغيرة (نسخ/استخدام) — ليست أزرار إجراء رئيسية، فتصميمها محايد وأصغر */
+        .btn-copy-fix, .btn-use-fix { width: auto; flex: 0 0 auto; padding: 6px 14px; font-size: 13px; font-weight: 600; margin-top: 0; background: #e2e8f0; color: #1b2433; border: 1px solid #94a3b8; box-shadow: none; }
+        :root[data-theme="dark"] .btn-copy-fix, :root[data-theme="dark"] .btn-use-fix { background: rgba(51, 65, 85, 0.6); color: #e8ecf2; border: 1px solid #64748b; }
+        .btn-copy-fix:hover, .btn-use-fix:hover { filter: brightness(0.95); background: #cbd5e1; }
+        :root[data-theme="dark"] .btn-copy-fix:hover, :root[data-theme="dark"] .btn-use-fix:hover { background: rgba(71, 85, 105, 0.8); }
+        .fix-tip { color: var(--text); font-size: 13px; margin-top: 10px; padding: 8px 12px; background: var(--msg-bg); border-radius: 6px; border-right: 3px solid color-mix(in srgb, var(--scan) 55%, transparent); }
 
         /* بطاقات خدمات عامة */
         .service-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 15px; }
@@ -200,10 +248,10 @@
         .grade-E, .grade-F { color: var(--err-text); }
 
         /* الفحص الأمني */
-        .security-ok { background: var(--warn-bg); display: none; }
-        .security-ok.active { display: block; background: color-mix(in srgb, var(--run) 15%, var(--surface-2)); color: var(--run-strong); border-right: 4px solid var(--run); border-radius: 8px; padding: 10px 14px; font-weight: 600; margin-top: 15px; }
+        .security-ok { display: none; }
+        .security-ok.active { display: flex; }
         .security-list { list-style: none; margin: 15px 0 0; padding: 0; }
-        .security-list li { background: var(--err-bg); color: var(--err-text); border-right: 4px solid var(--danger); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; line-height: 1.5; }
+        .security-list li { background: var(--msg-bg); color: var(--text); border-right: 4px solid color-mix(in srgb, var(--danger) 55%, transparent); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; line-height: 1.5; }
 
         /* بطاقة شرح المساعد الذكي */
         .ai-content { line-height: 1.9; white-space: pre-wrap; color: var(--text); }
@@ -219,11 +267,11 @@
         .performance-card { background: var(--perf-bg); border-color: var(--perf) !important; }
         .performance-card .card-title { color: var(--perf); border-color: var(--perf); }
         .performance-list { list-style: none; margin: 10px 0 0; padding: 0; }
-        .performance-list li { padding: 8px 12px; margin-bottom: 6px; background: var(--surface); border-radius: 6px; line-height: 1.6; display: flex; gap: 8px; align-items: flex-start; }
+        .performance-list li { padding: 8px 12px; margin-bottom: 6px; background: var(--msg-bg); border-right: 3px solid color-mix(in srgb, var(--perf) 55%, transparent); border-radius: 6px; line-height: 1.6; display: flex; gap: 8px; align-items: flex-start; color: var(--text); }
         .performance-note-text { margin-top: 10px; line-height: 1.7; }
 
         /* بطاقة تحذير: كود يحتاج جهازاً حقيقياً (كاميرا/حساس) */
-        .blocked-card { margin-top: 20px; background: var(--warn-bg); border: 2px solid var(--warn-text); border-radius: 10px; padding: 18px; display: none; color: var(--warn-text); line-height: 1.7; font-weight: 600; }
+        .blocked-card { margin-top: 20px; background: var(--msg-bg); border: 2px solid color-mix(in srgb, var(--warn-text) 55%, transparent); border-radius: 10px; padding: 18px; display: none; color: var(--text); line-height: 1.7; font-weight: 600; }
 
         /* بطاقة التحليل الذكي (شجرة الكود + شرح الفهم) — تركواز */
         .explain-card { margin-top: 20px; display: none; border: 2px solid var(--insight); border-radius: 10px; background: var(--surface); padding: 20px; box-shadow: 0 0 22px var(--insight-glow); }
@@ -231,7 +279,7 @@
         .explain-card .card-title { color: var(--insight); border-color: var(--insight); }
         #structureGraph { width: 100%; height: 360px; border-radius: 8px; background: var(--surface-2); }
         .graph-empty-note { color: var(--text-muted); font-size: 13px; padding: 10px; text-align: center; }
-        .overview-box { margin-top: 15px; padding: 12px 14px; background: color-mix(in srgb, var(--insight) 12%, var(--surface-2)); border-radius: 8px; border-right: 4px solid var(--insight); line-height: 1.7; }
+        .overview-box { margin-top: 15px; padding: 12px 14px; background: var(--msg-bg); color: var(--text); border-radius: 8px; border-right: 4px solid color-mix(in srgb, var(--insight) 55%, transparent); line-height: 1.7; }
         .sections-list { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
         .section-item { background: var(--surface-2); border-radius: 8px; padding: 12px 14px; }
         .section-item .section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -308,7 +356,8 @@
 
             <div style="margin-bottom: 15px;">
                 <label>أدخل كودك هنا:</label>
-                <div dir="ltr" style="unicode-bidi: isolate;">
+                <div class="editor-shell" dir="ltr" style="unicode-bidi: isolate;">
+                    <div class="editor-titlebar" id="editorTitlebar">main.py</div>
                     <div id="codeEditor"></div>
                 </div>
             </div>
@@ -316,8 +365,8 @@
             <div class="actions">
                 <button id="runBtn"><span id="runBtnIcon" class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></span> <span id="runBtnLabel">تشغيل</span></button>
                 <button id="stopBtn">■ إيقاف</button>
-                <button id="analyzeBtn"><span class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span> فحص ذكي</button>
-                <button id="explainBtn"><span class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg></span> تحليل ذكي</button>
+                <button id="analyzeBtn"><span class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span> <span id="analyzeBtnLabel">فحص ذكي</span></button>
+                <button id="explainBtn"><span class="btn-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg></span> <span id="explainBtnLabel">تحليل ذكي</span></button>
             </div>
             <div class="hint" id="runHint">يتم تشغيل الكود داخل متصفحك فقط، ولا يُنفَّذ على الخادم.</div>
 
@@ -350,7 +399,7 @@
             <div id="resultsCard" class="service-card results-card">
                 <!-- 1. ملخص سريع -->
                 <div class="sub-section">
-                    <div class="card-title">✅ ملخص الفحص الذكي</div>
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> ملخص الفحص الذكي</div>
                     <div id="analyzeSummary" class="summary-line"></div>
                     <div class="assessment-grid">
                         <div class="assessment-tile">
@@ -388,13 +437,13 @@
 
                 <!-- 4. شرح الذكاء الاصطناعي -->
                 <div id="aiCard" class="sub-section">
-                    <div class="card-title">✨ شرح المساعد الذكي</div>
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg> شرح المساعد الذكي</div>
                     <div id="aiContent" class="ai-content"></div>
                 </div>
 
                 <!-- 5. الكود المصحَّح -->
                 <div id="fixedCodeCard" class="sub-section">
-                    <div class="card-title">✅ الكود المصحَّح</div>
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg> الكود المصحَّح</div>
                     <div id="fixedCodeOkMsg" class="ok-message" style="display:none;">✅ الكود جيد كما هو، لا حاجة لأي تعديل.</div>
                     <pre id="fixedCodePre"><code id="fixedCodeOutput" dir="ltr" style="text-align:left; font-family: Consolas,'Courier New',monospace; font-size:13px;"></code></pre>
                     <div id="fixedCodeButtons" class="fixed-code-buttons">
@@ -405,7 +454,7 @@
 
                 <!-- 6. نصائح التحسين -->
                 <div id="improvementsCard" class="sub-section">
-                    <div class="card-title">💡 نصائح التحسين</div>
+                    <div class="card-title"><svg class="icon" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> نصائح التحسين</div>
                     <div id="improvementsOkMsg" class="ok-message" style="display:none;">✅ لا توجد نصائح إضافية حالياً، أسلوب الكود جيد.</div>
                     <ul id="improvementsList" class="improvements-list"></ul>
                     <div id="fixTip" class="fix-tip" style="display:none;"></div>
@@ -456,7 +505,7 @@
         function applyTheme(theme) {
             document.documentElement.setAttribute("data-theme", theme);
             themeToggle.textContent = theme === "dark" ? "☀️ فاتح" : "🌙 داكن";
-            if (window.editor) monaco.editor.setTheme(theme === "dark" ? "vs-dark" : "vs");
+            if (window.editor) monaco.editor.setTheme(theme === "dark" ? "platform-dark" : "platform-light");
             if (window.lastStructureData) renderGraph(window.lastStructureData);
         }
         let savedTheme = "dark";
@@ -495,6 +544,17 @@
             html: "html", json: "json",
             csharp: "csharp", kotlin: "kotlin", swift: "swift", typescript: "typescript", bash: "shell"
         };
+        // امتداد ملف تمثيلي لكل لغة — يُعرض في شريط عنوان المحرر فقط (شكلي، لا نظام ملفات فعلي)
+        const FILE_EXT = {
+            python: "py", javascript: "js", c: "c", cpp: "cpp", java: "java", go: "go",
+            rust: "rs", php: "php", ruby: "rb", html: "html", json: "json",
+            csharp: "cs", kotlin: "kt", swift: "swift", typescript: "ts", bash: "sh"
+        };
+        function updateEditorTitlebar() {
+            const lang = languageSelect.value;
+            document.getElementById("editorTitlebar").textContent = `main.${FILE_EXT[lang] || "txt"}`;
+        }
+
         // طريقة تشغيل كل لغة: pyodide/worker/judge0 — اللغات غير المذكورة لا يتوفر لها تشغيل
         const RUNNABLE = {
             python: "pyodide", javascript: "worker",
@@ -519,19 +579,41 @@
         };
         require.config({ paths: { vs: "/monaco/vs" } });
         require(["vs/editor/editor.main"], () => {
+            // ثيمان مخصصان قريبان جداً من vs-dark/vs الأصليين، بخلفية مطابقة بدقة لألوان المنصة
+            // (surface-2) بدل الأسود/الأبيض الافتراضي لـ Monaco، ليندمج المحرر بصرياً مع الصفحة
+            monaco.editor.defineTheme("platform-dark", {
+                base: "vs-dark", inherit: true, rules: [],
+                colors: {
+                    "editor.background": "#1f2834",
+                    "editor.lineHighlightBackground": "#2a3444",
+                    "editor.lineHighlightBorder": "#3a4860",
+                    "editorLineNumber.activeForeground": "#e8ecf2",
+                }
+            });
+            monaco.editor.defineTheme("platform-light", {
+                base: "vs", inherit: true, rules: [],
+                colors: {
+                    "editor.background": "#e4e8f0",
+                    "editor.lineHighlightBackground": "#d7dfeb",
+                    "editor.lineHighlightBorder": "#c3cedf",
+                    "editorLineNumber.activeForeground": "#1b2433",
+                }
+            });
             // requestAnimationFrame يضمن اكتمال رسم DOM والخطوط قبل قياس Monaco للـ lineHeight
             requestAnimationFrame(() => {
                 window.editor = editor = monaco.editor.create(document.getElementById("codeEditor"), {
                     value: SAMPLES[languageSelect.value],
                     language: MONACO_LANG[languageSelect.value],
-                    theme: document.documentElement.getAttribute("data-theme") === "dark" ? "vs-dark" : "vs",
+                    theme: document.documentElement.getAttribute("data-theme") === "dark" ? "platform-dark" : "platform-light",
                     automaticLayout: true,
-                    minimap: { enabled: false },
+                    minimap: { enabled: window.innerWidth > 640, scale: 1, maxColumn: 80 },
+                    renderLineHighlight: "all",
                     wordWrap: "on",
                     fontSize: 15,
                     lineHeight: 22,
                     fontLigatures: false
                 });
+                updateEditorTitlebar();
                 // تشخيص + إعادة layout بعد التهيئة
                 setTimeout(() => {
                     if (editor) {
@@ -717,6 +799,7 @@
             // استبدال الكود بالمثال فقط إذا لم يعدّله الطالب
             if (!current.trim() || Object.values(SAMPLES).includes(current)) editor.setValue(SAMPLES[lang]);
             monaco.editor.setModelLanguage(editor.getModel(), MONACO_LANG[lang]);
+            updateEditorTitlebar();
             updateRunAvailability();
             document.getElementById("resultsCard").style.display = "none";
             outputCard.style.display = "none";
@@ -1101,7 +1184,7 @@
             const lang = languageSelect.value;
 
             analyzeBtn.disabled = true;
-            analyzeBtn.innerText = "جاري الفحص...";
+            document.getElementById("analyzeBtnLabel").textContent = "جاري الفحص...";
 
             // إظهار حالة "جاري التحليل" في بطاقة AI مباشرة
             const aiCard = document.getElementById("aiCard");
@@ -1134,7 +1217,7 @@
                 alert("فشل الاتصال بالسيرفر أثناء الفحص، تأكد من تشغيله.");
             } finally {
                 analyzeBtn.disabled = false;
-                analyzeBtn.innerText = "🩺 فحص ذكي";
+                document.getElementById("analyzeBtnLabel").textContent = "فحص ذكي";
             }
         });
 
@@ -1222,7 +1305,7 @@
             const lang = languageSelect.value;
 
             explainBtn.disabled = true;
-            explainBtn.innerText = "جاري التحليل...";
+            document.getElementById("explainBtnLabel").textContent = "جاري التحليل...";
             explainCard.style.display = "block";
             document.getElementById("overviewBox").textContent = "⏳ جاري تحليل بنية الكود...";
             document.getElementById("sectionsList").innerHTML = "";
@@ -1280,9 +1363,7 @@
                     overviewBox.textContent = "تعذّر الحصول على شرح من الذكاء الاصطناعي حالياً — يمكنك تصفح خريطة البنية أعلاه فقط.";
                     const note = document.createElement("div");
                     note.className = "ok-message";
-                    note.style.background = "var(--warn-bg)";
-                    note.style.color = "var(--warn-text)";
-                    note.style.borderRightColor = "var(--warn-text)";
+                    note.style.borderRightColor = "color-mix(in srgb, var(--warn-text) 55%, transparent)";
                     note.textContent = "⚠️ لا تتوفر حالياً خدمة شرح الأجزاء بالذكاء الاصطناعي.";
                     sectionsList.appendChild(note);
                 }
@@ -1291,7 +1372,7 @@
                 alert("فشل الاتصال بالسيرفر أثناء التحليل، تأكد من تشغيله.");
             } finally {
                 explainBtn.disabled = false;
-                explainBtn.innerText = "🧭 تحليل ذكي";
+                document.getElementById("explainBtnLabel").textContent = "تحليل ذكي";
             }
         });
     </script>
