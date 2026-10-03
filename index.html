@@ -171,6 +171,19 @@
         .improvements-list li { padding: 8px 12px; margin-bottom: 6px; background: var(--surface-2); border-radius: 6px; line-height: 1.5; }
         .improvements-list li::before { content: "💡 "; }
 
+        /* فئة خامسة اختيارية: الأداء والكفاءة — بنفسجي فاتح هادئ، تختلف عمداً عن ألوان الفحص الذكي
+           (برتقالي) لأنها ملاحظة تعليمية وليست مشكلة فعلية */
+        :root { --perf: #7c6fd8; --perf-bg: #efecfb; }
+        :root[data-theme="dark"] { --perf: #b3a9f5; --perf-bg: #27243f; }
+        .performance-card { margin-top: 15px; background: var(--perf-bg); border: 1px solid var(--perf); border-radius: 10px; padding: 16px; display: none; }
+        .performance-card .card-title { color: var(--perf); border-color: var(--perf); }
+        .performance-list { list-style: none; margin: 10px 0 0; padding: 0; }
+        .performance-list li { padding: 8px 12px; margin-bottom: 6px; background: var(--surface); border-radius: 6px; line-height: 1.6; display: flex; gap: 8px; align-items: flex-start; }
+        .performance-note-text { margin-top: 10px; line-height: 1.7; }
+
+        /* بطاقة تحذير: كود يحتاج جهازاً حقيقياً (كاميرا/حساس) */
+        .blocked-card { margin-top: 20px; background: var(--warn-bg); border: 2px solid var(--warn-text); border-radius: 10px; padding: 18px; display: none; color: var(--warn-text); line-height: 1.7; font-weight: 600; }
+
         /* بطاقة التحليل الذكي (شجرة الكود + شرح الفهم) — تركواز */
         .explain-card { margin-top: 20px; display: none; border: 2px solid var(--insight); border-radius: 10px; background: var(--surface); padding: 20px; }
         .explain-card .card-title { color: var(--insight); border-color: var(--insight); }
@@ -343,6 +356,16 @@
                 <div id="fixTip" class="fix-tip" style="display:none;"></div>
             </div>
 
+            <!-- فئة خامسة اختيارية: فرصة تعلّم (أداء وكفاءة) — تظهر فقط عند وجود ملاحظة فعلية -->
+            <div id="performanceCard" class="performance-card">
+                <div class="card-title">⚡ فرصة تعلّم: الأداء</div>
+                <ul id="performanceList" class="performance-list"></ul>
+                <div id="performanceNoteText" class="performance-note-text" style="display:none;"></div>
+            </div>
+
+            <!-- تحذير: الكود يحتاج جهازاً حقيقياً (كاميرا/حساس) -->
+            <div id="blockedCard" class="blocked-card"></div>
+
             <!-- بطاقة التحليل الذكي: شجرة الكود التفاعلية + شرح الفهم -->
             <div id="explainCard" class="explain-card">
                 <!-- 1. الرسم التفاعلي -->
@@ -491,10 +514,19 @@
                 };`,
             python: `
                 importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");  // Pyodide من CDN (يحتاج اتصالاً بالإنترنت من متصفح المستخدم)
-                const ready = loadPyodide().then((py) => {
+                // تحميل مسبق لأشهر مكتبات بايثون التعليمية داخل Pyodide نفسه (لا علاقة بـ Dockerfile الخادم،
+                // فبايثون لا يعمل إلا هنا داخل متصفح الطالب). matplotlib يحتاج أيضاً حزمة matplotlib-pyodide
+                // الفرعية التي يُحمّلها تلقائياً. requests غير مدعومة حقيقةً هنا (Pyodide بلا مقابس شبكة خام)
+                // لذا نتجاهلها عمداً بدل الإيهام بدعم وهمي — TODO: دعم محدود عبر pyodide-http لاحقاً عند الحاجة.
+                const ready = loadPyodide().then(async (py) => {
                     py.setStdout({ batched: (t) => postMessage({ type: "out", stream: "stdout", text: t + "\\n" }) });
                     py.setStderr({ batched: (t) => postMessage({ type: "out", stream: "stderr", text: t + "\\n" }) });
                     py.setStdin({ error: true });
+                    try {
+                        await py.loadPackage(["numpy", "pandas", "matplotlib"]);
+                    } catch (err) {
+                        postMessage({ type: "out", stream: "stderr", text: "تنبيه: تعذّر تحميل بعض المكتبات الجاهزة (numpy/pandas/matplotlib)، قد تحتاج اتصالاً أفضل بالإنترنت.\\n" });
+                    }
                     postMessage({ type: "ready" });
                     return py;
                 }).catch((err) => postMessage({ type: "fatal", text: String(err) }));
@@ -749,12 +781,31 @@
             }
         }
 
+        // فحص فوري في المتصفح (بدون أي طلب للخادم) لمكتبات تحتاج جهازاً حقيقياً — يمنع محاولة
+        // تحميل Pyodide فاشلة مسبقاً بدل عرض خطأ ImportError تقني غير مفهوم للطالب
+        const HARDWARE_IMPORT_RE = /^\s*(import\s+(cv2|picamera|serial|pyaudio|RPi(\.GPIO)?)\b|from\s+(cv2|picamera|serial|pyaudio|RPi(\.GPIO)?)\s+import)/m;
+        function getHardwareBlockMessage(lang, code) {
+            if (lang !== "python" || !HARDWARE_IMPORT_RE.test(code)) return null;
+            return "⚠️ هذا الكود يحتاج وصولاً لجهاز حقيقي (كاميرا/حساس) غير متاح في بيئة التشغيل السحابية. "
+                 + "جرّب هذا الكود على جهازك الشخصي مباشرة، أو استخدم متصفحك للوصول لجهازك إن كان يدعم ذلك.";
+        }
+
         runBtn.addEventListener("click", async () => {
             const code = getCode();
             if (!code.trim()) return alert("الرجاء إدخال الكود أولاً!");
             const lang = languageSelect.value;
             const mode = RUNNABLE[lang];
             if (!mode) return;
+
+            const blockMsg = getHardwareBlockMessage(lang, code);
+            if (blockMsg) {
+                const blockedCard = document.getElementById("blockedCard");
+                blockedCard.textContent = blockMsg;
+                blockedCard.style.display = "block";
+                outputCard.style.display = "none";
+                return;
+            }
+            document.getElementById("blockedCard").style.display = "none";
 
             runOutput.textContent = "";
             document.getElementById("runLangLabel").textContent = languageSelect.options[languageSelect.selectedIndex].text;
@@ -895,6 +946,37 @@
                 fixedCodeCard.style.display = "none";
                 improvementsCard.style.display = "none";
             }
+
+            // فئة خامسة اختيارية: فرصة تعلّم (أداء وكفاءة) — تظهر فقط عند وجود ملاحظة فعلية
+            const performanceCard = document.getElementById("performanceCard");
+            const performanceList = document.getElementById("performanceList");
+            const performanceNoteText = document.getElementById("performanceNoteText");
+            const perfNotes = data.performance_notes || [];
+            if (perfNotes.length) {
+                performanceCard.style.display = "block";
+                performanceList.innerHTML = "";
+                perfNotes.forEach((p) => {
+                    const li = document.createElement("li");
+                    const lineBtn = document.createElement("button");
+                    lineBtn.className = "issue-line";
+                    lineBtn.textContent = "سطر " + p.line;
+                    lineBtn.addEventListener("click", () => jumpToLine(p.line));
+                    const msgText = document.createElement("span");
+                    msgText.setAttribute("dir", "auto");
+                    msgText.textContent = p.message;
+                    li.appendChild(lineBtn);
+                    li.appendChild(msgText);
+                    performanceList.appendChild(li);
+                });
+                if (ai && ai.performance_note) {
+                    performanceNoteText.textContent = ai.performance_note;
+                    performanceNoteText.style.display = "block";
+                } else {
+                    performanceNoteText.style.display = "none";
+                }
+            } else {
+                performanceCard.style.display = "none";
+            }
         }
 
         analyzeBtn.addEventListener("click", async () => {
@@ -918,10 +1000,17 @@
                     body: JSON.stringify({ language: lang, code })
                 });
                 const data = await response.json();
-                if (data.error) {
+                const blockedCard = document.getElementById("blockedCard");
+                if (data.blocked) {
+                    aiCard.style.display = "none";
+                    resultsCard.style.display = "none";
+                    blockedCard.textContent = data.message;
+                    blockedCard.style.display = "block";
+                } else if (data.error) {
                     aiCard.style.display = "none";
                     alert(data.error);
                 } else {
+                    blockedCard.style.display = "none";
                     renderAnalysis(data);
                 }
             } catch (err) {
